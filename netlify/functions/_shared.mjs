@@ -69,11 +69,12 @@ export function parseDispatch(text) {
   return chunks.map((segment) => {
     const workOrder = segment.match(/WO-\s*\d+/i)?.[0].replace(/\s+/g, '').toUpperCase();
     const times = [...segment.matchAll(/(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep(?:t)?|Oct|Nov|Dec)\s+\d{1,2},\s+\d{4}\s+\d{1,2}:\d{2}\s*(?:AM|PM)/gi)].map(match => match[0]);
-    const phone = segment.match(/\+1\d{10}/)?.[0] || segment.match(/\+?\d[\d\s()\-]{8,}\d/)?.[0] || '';
-    const postal = segment.match(/\b([A-Z]\d[A-Z]\d[A-Z]\d)\b/i);
-    const phoneAt = phone ? segment.indexOf(phone) : -1;
+    const phoneMatch = segment.match(/\+?1?[\s().-]*\d{3}[\s().-]*\d{3}[\s().-]*\d{4}/);
+    const phone = phoneMatch ? `+${phoneMatch[0].replace(/\D/g, '').replace(/^1?/, '1')}` : '';
+    const postal = segment.match(/\b([A-Z]\d[A-Z]\s?\d[A-Z]\d)\b/i);
+    const phoneAt = phoneMatch ? phoneMatch.index : -1;
     const postalAt = postal ? segment.indexOf(postal[0]) : -1;
-    const address = phoneAt >= 0 && postalAt > phoneAt ? segment.slice(phoneAt + phone.length, postalAt).trim() : '';
+    const address = phoneAt >= 0 && postalAt > phoneAt ? segment.slice(phoneAt + phoneMatch[0].length, postalAt).replace(/\s+/g, ' ').trim() : '';
     // The last column (notes) can be cut off or run directly after the city.
     // Keep only the initial capitalized city name and deliberately ignore the rest.
     const city = postal ? (segment.slice(postalAt + postal[0].length).trim().match(/^([A-Z][a-z.]+(?:[ -][A-Z][a-z.]+){0,2})/)?.[1] || '') : '';
@@ -83,7 +84,7 @@ export function parseDispatch(text) {
     return {
       workOrder, date: isoDate(times[0] || ''), appointmentStart: timeStamp(times[0] || ''), appointmentEnd: timeStamp(times[1] || ''),
       source: 'goline', status: 'Assigned', workType, customer: 'GoLime customer', phone,
-      address: [address, city, postal?.[1]].filter(Boolean).join(', '), equipment,
+      address: [address, city, postal?.[1]?.replace(/\s/g, '').toUpperCase()].filter(Boolean).join(', '), equipment,
       notes: `Imported automatically from GoLime Master Dispatch. Scheduled ${times[0] || ''}${times[1] ? ` to ${times[1]}` : ''}.`, extras: []
     };
   }).filter(job => job.workOrder && job.date);
