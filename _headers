@@ -1,0 +1,17 @@
+/field-manager.js
+  Content-Type: application/javascript; charset=UTF-8
+
+/vendor/*.mjs
+  Content-Type: application/javascript; charset=UTF-8
+
+/pdf.min.mjs
+  Content-Type: application/javascript; charset=UTF-8
+
+/pdf.worker.min.mjs
+  Content-Type: application/javascript; charset=UTF-8
+
+/index.html
+  Cache-Control: no-store, max-age=0
+
+/service-worker.js
+  Cache-Control: no-store, max-age=0

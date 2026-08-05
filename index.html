@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0c4f8a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="stylesheet" href="styles.css">
+  <style>.hero-secondary{width:100%;margin-top:10px;padding:11px;border:1px solid #9ed4f0;border-radius:12px;background:transparent;color:#fff;font:inherit;font-weight:800;cursor:pointer}.import-card p{color:#60717d;font-size:13px;line-height:1.45;margin:7px 0 16px}.file-picker{display:block;text-align:center;background:#0c72b8;color:#fff;border-radius:11px;padding:13px;font-weight:800;cursor:pointer}.file-picker input{display:none}.import-status{font-size:12px!important;text-align:center;margin:13px 0 0!important}.import-status.error{color:#b95225}.dispatch-preview-card{cursor:default}</style>
+  <style>.topbar{background:#fff;border-bottom-color:#dfe8ed}.header-date,.header-today{border:0;background:transparent;text-align:left;color:#17334a;cursor:pointer}.header-date{display:grid;gap:1px}.header-date span{font-size:11px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:#5a7486}.header-date strong{font-size:17px}.header-today{margin-left:auto;margin-right:12px;display:grid;gap:2px;padding:7px 11px;border-left:1px solid #dfe8ed}.header-today span{font-size:10px;color:#60717d;font-weight:700}.header-today strong{font-size:13px;color:#0c72b8}.hero{position:relative;overflow:hidden}.hero-content{position:relative;z-index:1;max-width:70%}.hero-logo{position:absolute;right:18px;top:14px;width:188px;height:58px;object-fit:contain;object-position:center;opacity:1}.hero-tagline{position:absolute;z-index:1;right:25px;top:76px;width:176px;text-align:center;color:#f4fbff;font-size:13px;font-style:italic;font-weight:600;letter-spacing:.35px;text-shadow:0 1px 2px #062b48}.hero-actions{position:relative;z-index:1;display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}.hero-actions .primary,.hero-actions .hero-secondary{margin-top:0}.choice-logo{width:52px;height:52px;object-fit:contain;border-radius:12px;margin-bottom:14px}.badge.goline{display:inline-flex;align-items:center;gap:4px}.badge.goline img{width:15px;height:15px;border-radius:50%;object-fit:cover}@media(max-width:460px){.hero-content{max-width:78%}.hero-logo{width:142px;height:45px;right:5px;top:17px}.hero-tagline{right:5px;top:58px;width:142px;font-size:10px}.hero-actions{grid-template-columns:1fr}.header-today{margin-right:2px;padding-right:4px}}</style>
+  <style>.bottom-nav{gap:min(3vw,22px);overflow-x:auto;justify-content:flex-start;padding-left:max(12px,calc((100vw - 740px)/2))}.bottom-nav button{flex:0 0 54px}.travel-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}.travel-metric{border:1px solid var(--line);border-radius:13px;background:#fff;padding:12px}.travel-metric span{display:block;color:var(--muted);font-size:11px}.travel-metric strong{display:block;color:var(--navy);font-size:18px;margin-top:4px}.travel-status{font-size:13px;color:var(--muted);line-height:1.45;margin:12px 0}.route-row,.extra-summary-row,.claim-summary-row{display:flex;gap:12px;align-items:center;justify-content:space-between;background:#fff;border:1px solid var(--line);border-radius:14px;padding:13px}.route-row+.route-row,.extra-summary-row+.extra-summary-row,.claim-summary-row+.claim-summary-row{margin-top:8px}.route-row strong,.extra-summary-row strong,.claim-summary-row strong{font-size:14px;color:var(--navy)}.route-row span,.extra-summary-row span,.claim-summary-row span{display:block;font-size:11px;color:var(--muted);margin-top:3px}.route-km{color:var(--blue)!important;font-size:14px!important;font-weight:800;white-space:nowrap}.travel-note{font-size:11px;color:var(--muted);line-height:1.45;margin:10px 2px 0}.extras-total{margin-bottom:15px}.manual-travel{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end}.manual-travel .secondary{height:41px}.save-indicator{margin:12px 0 0;padding:10px 12px;border-radius:10px;background:#eff9f3;color:#19734f;font-size:12px;font-weight:700}.claim-summary{margin:14px 0}.claim-summary .travel-metric strong{font-size:20px}.claim-period{display:grid;grid-template-columns:1fr 1fr;gap:12px}.claims-list{margin-top:10px}.login-shell{max-width:420px;margin:8vh auto;background:#fff;border:1px solid var(--line);border-radius:22px;padding:28px;box-shadow:var(--shadow);text-align:center}.login-shell h1{font-size:28px;margin:7px 0}.login-shell>p:not(.eyebrow){color:var(--muted);line-height:1.45;margin-bottom:22px}.login-shell .form-stack{text-align:left}.login-logo{width:205px;height:64px;object-fit:contain;background:#07517f;border-radius:14px;padding:4px}@media(max-width:460px){.travel-grid,.claim-period{grid-template-columns:1fr}.manual-travel{grid-template-columns:1fr}.manual-travel .secondary{width:100%}.login-shell{margin:24px 0;padding:23px}}</style>
+  <style>
+    :root{--side-nav:76px}
+    body{padding-bottom:20px}
+    main{width:calc(100% - var(--side-nav) - 16px);max-width:740px;margin:0 8px 0 calc(var(--side-nav) + 8px);padding:24px 10px 20px}
+    .bottom-nav{position:fixed!important;z-index:20;top:84px;bottom:16px;left:0;right:auto;width:var(--side-nav);height:auto;display:flex;flex-direction:column;align-items:stretch;justify-content:space-evenly;gap:0;overflow-y:auto;overflow-x:hidden;padding:8px 6px;background:linear-gradient(180deg,rgba(255,255,255,.35),rgba(224,240,248,.16))!important;border:1px solid rgba(255,255,255,.62);border-left:0;border-radius:0 20px 20px 0;backdrop-filter:blur(18px) saturate(1.15);-webkit-backdrop-filter:blur(18px) saturate(1.15);box-shadow:inset -1px 0 rgba(94,140,165,.12),8px 0 24px rgba(16,70,96,.035)}
+    .bottom-nav button{flex:0 0 auto;width:100%;min-height:57px;height:auto;padding:7px 2px;border:0;border-radius:12px;background:transparent!important;display:grid!important;place-items:center;align-content:center;gap:4px;font-size:9px;color:#617886}
+    .bottom-nav span{font-size:23px!important;line-height:24px!important;font-style:normal}
+    .bottom-nav button.active{background:rgba(255,255,255,.52)!important;color:#075b94!important;box-shadow:0 1px 8px rgba(10,52,68,.07)}
+    .bottom-nav button[data-view="dashboard"] span{color:#1976b8}.bottom-nav button[data-view="jobs"] span{color:#405a74}.bottom-nav button[data-view="money"] span{color:#16855b}.bottom-nav button[data-view="travel"] span{color:#c96e1a}.bottom-nav button[data-view="extras"] span{color:#9a4fbd}.bottom-nav button[data-view="claims"] span{color:#0e72af}.bottom-nav button[data-view="calendar"] span{color:#6957a8}.bottom-nav button[data-view="files"] span{color:#52717f}
+    .hero{padding:18px;display:flex;flex-direction:column;align-items:stretch}.hero-logo{position:static;align-self:center;width:min(220px,100%);height:auto;max-height:64px;object-fit:contain;object-position:center;margin:0 0 2px}.hero-tagline{position:static;align-self:center;width:auto;text-align:center;margin:0 0 15px;color:#f4fbff;font-size:13px;line-height:1.2;text-shadow:0 1px 2px #062b48}.hero-content{max-width:none;text-align:center}.hero-actions{margin-top:16px}
+    .home-hst{margin:-6px 0 18px;padding:10px 13px;border:1px solid rgba(22,133,91,.2);border-radius:13px;background:rgba(233,247,238,.62);display:flex;align-items:center;justify-content:space-between;gap:12px;color:#48665a;font-size:11px}.home-hst strong{color:#19734f;font-size:13px}.home-hst b{color:#173f2d}
+    .photo-sync-note{margin:10px 0 2px;padding:9px 10px;border-radius:10px;background:rgba(234,245,252,.72);color:#486575;font-size:11px;line-height:1.35}.photo-category.uploading{opacity:.72}.photo-thumb .thumb:not([src]){background:linear-gradient(135deg,#e8f2f7,#d4e3eb)}
+    @media(min-width:700px){:root{--side-nav:90px}main{width:min(900px,calc(100% - var(--side-nav) - 28px));margin-left:calc(var(--side-nav) + 14px);padding-left:18px;padding-right:18px}.bottom-nav{padding-left:9px;padding-right:9px}.bottom-nav button{min-height:62px;font-size:10px}.bottom-nav span{font-size:25px!important}.hero{padding:22px}.hero-logo{width:245px;max-height:72px}}
+    @media(max-width:380px){:root{--side-nav:70px}.bottom-nav{padding-left:5px;padding-right:5px}.bottom-nav button{min-height:54px}}
+  </style>
+  <title>Akon Air Field Management</title>
+</head>
+<body>
+  <header class="topbar">
+    <button class="header-date" data-view="dashboard" aria-label="Go to dashboard"><span id="headerDate">Today</span><strong id="headerTime"></strong></button>
+    <button class="header-today" data-view="jobs"><span>Today’s schedule</span><strong id="headerJobCount">0 jobs</strong></button>
+    <button class="icon-button" id="installButton" aria-label="Install app" hidden>↓</button>
+  </header>
+
+  <main id="app"></main>
+  <nav class="bottom-nav" aria-label="Main navigation">
+    <button data-view="dashboard" class="active"><span>⌂</span>Home</button>
+    <button data-view="jobs"><span>▣</span>Jobs</button>
+    <button data-view="money"><span>$</span>Owed</button>
+    <button data-view="travel"><span>⌁</span>Travel</button>
+    <button data-view="extras"><span>＋</span>Extras</button>
+    <button data-view="claims"><span>▤</span>Claims</button>
+    <button data-view="calendar"><span>□</span>Calendar</button>
+    <button data-view="files"><span>▤</span>Files</button>
+  </nav>
+
+  <template id="login-template">
+    <section class="login-shell"><img src="akon-air-mark.png" alt="Akon Air" class="login-logo"><p class="eyebrow">FIELD MANAGEMENT</p><h1>Akon Air</h1><p>Sign in to access your shared jobs, completion photos, travel records, and claims.</p><form id="loginForm" class="form-stack"><label>Email<input name="email" type="email" autocomplete="email" required placeholder="you@example.com"></label><label>Password<input name="password" type="password" autocomplete="current-password" required placeholder="Your password"></label><button class="primary wide" type="submit">Sign in</button><p id="loginStatus" class="travel-status"></p></form></section>
+  </template>
+
+  <template id="dashboard-template">
+    <section class="hero"><img class="hero-logo" src="akon-air-mark.png" alt="Akon Air"><span class="hero-tagline">Comfort Feels Like Home</span><div class="hero-content"><p class="eyebrow">FIELD OPERATIONS</p><h1>Good day, Amrit & Karan.</h1><p>Keep jobs, proof of completion, and payments in one place.</p></div><div class="hero-actions"><button class="primary wide" data-action="new-job">＋ Create new job</button><button class="hero-secondary" data-action="import-dispatch">⇧ Import Master Dispatch</button></div></section>
+    <section class="stat-grid" id="statGrid"></section>
+    <section class="section-heading"><div><p class="eyebrow">GOLIME PAYMENTS</p><h2>What GoLime owes</h2></div><button class="secondary small" data-view="money">View details</button></section>
+    <section class="stat-grid" id="homeOwedBreakdown"></section><section class="home-hst" id="homeOwedTax"></section>
+    <section class="section-heading"><div><p class="eyebrow">FIELD TOOLS</p><h2>Run your day</h2></div></section>
+    <div id="recentJobs" class="card-list"></div>
+    <section class="form-card" id="emailDispatchCard"><p class="eyebrow">AUTOMATIC DISPATCH</p><h2>Master Dispatch email</h2><p id="emailDispatchStatus">Checking automatic-import setup…</p><button class="secondary wide" data-action="connect-gmail">Connect Gmail</button><button class="secondary wide" data-action="check-dispatch" hidden>Check Gmail now</button></section>
+  </template>
+
+  <template id="job-choice-template">
+    <section class="page-title"><button class="back" data-view="dashboard">‹</button><div><p class="eyebrow">NEW JOB</p><h1>Who is this job for?</h1><p>Choose the workflow that matches the job.</p></div></section>
+    <div class="choice-grid">
+      <button class="choice-card goline" data-action="choose-source" data-source="goline"><img class="choice-logo" src="goline-logo.jpg" alt="GoLime logo"><strong>GoLime</strong><small>Subcontracted work with work orders, GoLime rates, completion proof and payment tracking.</small><span class="arrow">→</span></button>
+      <button class="choice-card akon" data-action="choose-source" data-source="akon"><span class="choice-icon">A</span><strong>Akon Air</strong><small>Direct customer work with your own customer record and invoice-ready job details.</small><span class="arrow">→</span></button>
+    </div>
+  </template>
+
+  <template id="job-form-template">
+    <section class="page-title"><button class="back" data-view="job-choice">‹</button><div><p class="eyebrow" id="jobSourceLabel"></p><h1 id="jobFormTitle">New job</h1><p id="jobFormSubtitle"></p></div></section>
+    <form id="jobForm" class="form-stack">
+      <section class="form-card"><h2>Job details</h2><div class="form-grid">
+        <label class="full goline-only">Work Order Number <em>Required</em><input name="workOrder" required placeholder="e.g. GL-45872"></label>
+        <label>Appointment date<input name="date" type="date" required></label>
+        <label>Job status<select name="status"><option>Assigned</option><option>In Progress</option><option>Waiting for Parts</option><option>Completed</option><option>Submitted to GoLime</option><option>Paid</option></select></label>
+        <label class="full">Installation / work type<select name="workType" id="workType" required></select></label>
+        <label class="full">Job notes<textarea name="notes" rows="3" placeholder="Access notes, job details, equipment information…"></textarea></label>
+      </div></section>
+      <section class="form-card"><h2>Customer information</h2><div class="form-grid">
+        <label>Customer name<input name="customer" required placeholder="Full name"></label>
+        <label>Phone<input name="phone" type="tel" placeholder="Phone number"></label>
+        <label class="full">Service address<input name="address" required placeholder="Street, city, postal code"></label>
+        <label>Email<input name="email" type="email" placeholder="Email address"></label>
+        <label>Equipment / serial<input name="equipment" placeholder="Optional"></label>
+      </div></section>
+      <section class="form-card goline-only"><div class="card-title"><div><h2>GoLime rate</h2><p>Base rate updates when you select the work type.</p></div><strong id="baseRate">$0.00</strong></div></section>
+      <section class="form-card goline-only"><div class="card-title"><div><h2>Extras</h2><p>Add approved custom charges to this job.</p></div><button type="button" class="secondary small" id="addExtra">＋ Add extra</button></div><div id="extrasList" class="extras-list"></div><div class="total-line"><span>Total extras</span><strong id="extrasTotal">$0.00</strong></div></section>
+      <section class="form-card goline-only"><div class="card-title"><div><h2>Required photos & tests</h2><p id="photoHelp">Select an installation type to load the GoLime checklist.</p></div></div><div id="photoChecklist"></div></section>
+      <section class="form-card"><button type="submit" class="primary wide">Save job</button></section>
+    </form>
+  </template>
+
+  <template id="jobs-template">
+    <section class="page-title"><div><p class="eyebrow">JOB RECORDS</p><h1>All jobs</h1><p>Your field work, organized in one place.</p></div><button class="round-add" data-action="new-job">＋</button></section>
+    <section class="form-card" style="margin-bottom:12px"><p class="eyebrow">SOURCE & STATUS</p><div class="filters"><button class="filter active" data-filter="all">All</button><button class="filter" data-filter="goline">GoLime</button><button class="filter" data-filter="akon">Akon Air</button><button class="filter" data-filter="open">Active</button><button class="filter" data-filter="completed">Completed</button><button class="filter" data-filter="submitted">Submitted</button><button class="filter" data-filter="paid">Paid</button><button class="filter" data-filter="history">History</button></div><p class="eyebrow" style="margin-top:16px">DATE RANGE</p><div class="filters"><button class="date-filter active" data-date-filter="all">All dates</button><button class="date-filter" data-date-filter="today">Today</button><button class="date-filter" data-date-filter="3">3 days</button><button class="date-filter" data-date-filter="7">7 days</button><button class="date-filter" data-date-filter="30">30 days</button></div><label style="display:block;margin-top:12px;font-size:12px;color:var(--muted)">Specific date<input id="jobExactDate" type="date" style="margin-top:5px"></label></section>
+    <div class="card-list" id="allJobs"></div>
+  </template>
+
+  <template id="files-template">
+    <section class="page-title"><div><p class="eyebrow">DOCUMENT CENTRE</p><h1>Recent files</h1><p>Completion reports and GoLime claims you have prepared.</p></div></section>
+    <section class="form-card"><p class="travel-status">Each completion report includes the service address. Choose an entry to open and print it again.</p></section>
+    <div class="card-list" id="recentFiles"></div>
+  </template>
+
+  <template id="money-template">
+    <section class="page-title"><div><p class="eyebrow">GO LINE PAYMENTS</p><h1>Money owed</h1><p>Track completed subcontracted work and payments.</p></div></section>
+    <section class="amount-card"><p>Total owed by GoLime</p><strong id="outstandingAmount">$0.00</strong><span id="owedStats"></span></section>
+    <section class="stat-grid" aria-label="GoLime payment breakdown"><div class="stat"><span>Job pay</span><strong id="owedJobPay">$0.00</strong></div><div class="stat"><span>Extras</span><strong id="owedExtrasPay">$0.00</strong></div><div class="stat"><span>Travel</span><strong id="owedTravelPay">$0.00</strong></div><div class="stat"><span>Combined total</span><strong id="owedCombinedPay">$0.00</strong></div></section>
+    <section class="form-card" style="margin-top:12px"><p class="eyebrow">PAYMENT STATUS</p><div class="filters"><button class="owed-filter active" data-owed-filter="outstanding">Awaiting payment</button><button class="owed-filter" data-owed-filter="completed">Completed</button><button class="owed-filter" data-owed-filter="submitted">Submitted</button><button class="owed-filter" data-owed-filter="paid">Paid</button><button class="owed-filter" data-owed-filter="all">All</button></div><p class="eyebrow" style="margin-top:16px">DATE RANGE</p><div class="filters"><button class="owed-date-filter active" data-owed-date-filter="all">All dates</button><button class="owed-date-filter" data-owed-date-filter="today">Today</button><button class="owed-date-filter" data-owed-date-filter="3">3 days</button><button class="owed-date-filter" data-owed-date-filter="7">7 days</button><button class="owed-date-filter" data-owed-date-filter="30">30 days</button></div><label style="display:block;margin-top:12px;font-size:12px;color:var(--muted)">Specific date<input id="owedExactDate" type="date" style="margin-top:5px"></label></section>
+    <section class="section-heading"><div><p class="eyebrow">OUTSTANDING</p><h2>Jobs awaiting payment</h2></div></section><div class="card-list" id="outstandingJobs"></div>
+    <section class="section-heading"><div><p class="eyebrow">PAID</p><h2>Recently paid</h2></div></section><div class="card-list" id="paidJobs"></div>
+  </template>
+
+  <template id="travel-template">
+    <section class="page-title"><div><p class="eyebrow">GOLIME REIMBURSEMENT</p><h1>Travel pay</h1><p>Daily mileage from the GoLime warehouse to the farthest job.</p></div></section>
+    <section class="form-card"><div class="form-grid"><label class="full">GoLime warehouse start point<input id="warehouseAddress" value="273 Bowes Rd, Vaughan, ON L4K 1H8"></label><label class="full">Job date<input id="travelDate" type="date"></label></div></section>
+    <section class="amount-card"><p>Expected travel pay</p><strong id="travelAmount">$0.00</strong><span id="travelFormula">Calculate a route to see the reimbursement.</span></section>
+    <section class="travel-grid"><div class="travel-metric"><span>Farthest one-way distance</span><strong id="farthestKm">—</strong></div><div class="travel-metric"><span>Reimbursable kilometres</span><strong id="reimbursableKm">—</strong></div></section>
+    <section class="form-card"><h2>Calculate from day's jobs</h2><p class="travel-status" id="travelStatus">Uses driving routes from the warehouse to every GoLime job on the selected date.</p><button class="primary wide" data-action="calculate-travel">Calculate travel pay</button><button class="secondary wide" id="addTravelToClaim" data-action="add-travel-claim" style="margin-top:9px" disabled>Add this day to claims</button><p class="travel-note">Formula: (farthest one-way route × 2 − 75 km) × $0.75. The first 75 km are not reimbursed.</p></section>
+    <section class="form-card"><h2>Manual distance fallback</h2><p class="travel-status">Use this only if a job address cannot be mapped.</p><div class="manual-travel"><label>Farthest one-way distance (km)<input id="manualTravelKm" type="number" min="0" step="0.1" placeholder="e.g. 92.5"></label><button class="secondary" data-action="apply-manual-travel">Use distance</button></div></section>
+    <section class="section-heading"><div><p class="eyebrow">ROUTE CHECK</p><h2>GoLime jobs included</h2></div></section><div id="travelRoutes" class="card-list"></div>
+    <section class="section-heading"><div><p class="eyebrow">SAVED MILEAGE</p><h2>Travel history</h2></div><button class="text-button" data-view="claims">View claims</button></section><div id="travelHistory" class="card-list"></div>
+  </template>
+
+  <template id="extras-template">
+    <section class="page-title"><div><p class="eyebrow">GOLIME BILLING</p><h1>Extra charges</h1><p>Approved extras, kept separate while linked to each work order.</p></div></section>
+    <section class="amount-card extras-total"><p>Total extras recorded</p><strong id="extrasAmount">$0.00</strong><span id="extrasStats"></span></section>
+    <section class="section-heading"><div><p class="eyebrow">BY WORK ORDER</p><h2>Extras to bill</h2></div></section><div id="extrasSummary" class="card-list"></div>
+  </template>
+
+  <template id="claims-template">
+    <section class="page-title"><div><p class="eyebrow">GOLIME SUBMISSION</p><h1>10-day claims</h1><p>Combine saved travel pay and approved job extras into one dated claim.</p></div></section>
+    <section class="form-card"><h2>Claim period</h2><div class="claim-period"><label>Start date<input id="claimStart" type="date"></label><label>End date<input id="claimEnd" type="date"></label></div><button class="primary wide" data-action="refresh-claim">Review this claim</button></section>
+    <section class="claim-summary travel-grid"><div class="travel-metric"><span>Travel pay</span><strong id="claimTravelTotal">$0.00</strong></div><div class="travel-metric"><span>Extra charges</span><strong id="claimExtrasTotal">$0.00</strong></div><div class="travel-metric"><span>Total incl. HST</span><strong id="claimTotal">$0.00</strong></div><div class="travel-metric"><span>Saved mileage days</span><strong id="claimDays">0</strong></div></section>
+    <section class="form-card"><p class="travel-status" id="claimStatus">Choose a 10-day period to prepare your claim.</p><button class="primary wide" data-action="claim-pdf">Open printable PDF claim</button></section>
+    <section class="section-heading"><div><p class="eyebrow">MILEAGE BY DATE</p><h2>Travel records</h2></div></section><div id="claimTravelRows" class="claims-list"></div>
+    <section class="section-heading"><div><p class="eyebrow">EXTRAS BY DATE</p><h2>Extra charges</h2></div></section><div id="claimExtraRows" class="claims-list"></div>
+  </template>
+
+  <template id="calendar-template">
+    <section class="page-title"><div><p class="eyebrow">SCHEDULE</p><h1>Calendar</h1><p>A simple view of every scheduled job.</p></div></section>
+    <section class="calendar-card"><div class="calendar-header"><button id="prevMonth">‹</button><h2 id="monthName"></h2><button id="nextMonth">›</button></div><div class="calendar-weekdays"><span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span></div><div id="calendarGrid" class="calendar-grid"></div></section>
+    <p class="legend"><i class="dot goline-dot"></i> GoLime <i class="dot akon-dot"></i> Akon Air</p>
+    <section class="section-heading day-jobs-heading"><div><p class="eyebrow">SELECTED DAY</p><h2 id="selectedDayTitle">Jobs</h2></div></section><div class="card-list" id="selectedDayJobs"></div>
+  </template>
+
+  <template id="dispatch-import-template">
+    <section class="page-title"><button class="back" data-view="dashboard">‹</button><div><p class="eyebrow">GOLIME DISPATCH</p><h1>Import Master Dispatch</h1><p>Add the day's assigned jobs from GoLime's PDF.</p></div></section>
+    <section class="form-card import-card"><h2>Choose the dispatch PDF</h2><p>This importer reads work order, time, equipment, phone, and address. It deliberately ignores Work Order Notes.</p><label class="file-picker">Choose Master Dispatch PDF<input id="dispatchFile" type="file" accept="application/pdf"></label><p id="dispatchStatus" class="import-status">No PDF selected.</p></section>
+    <section id="dispatchPreview" hidden><section class="section-heading"><div><p class="eyebrow">REVIEW</p><h2 id="dispatchCount">Imported jobs</h2></div></section><div class="card-list" id="dispatchJobs"></div><button id="confirmDispatchImport" class="primary wide">Add jobs to calendar</button></section>
+  </template>
+
+  <template id="detail-template">
+    <section class="page-title"><button class="back" data-view="jobs">‹</button><div><p class="eyebrow" id="detailSource"></p><h1 id="detailTitle"></h1><p id="detailMeta"></p></div></section>
+    <div id="jobDetail"></div>
+  </template>
+
+  <template id="job-photos-template">
+    <section class="page-title"><button class="back" data-view="detail">‹</button><div><p class="eyebrow">GOLIME JOB PHOTOS</p><h1 id="photoJobTitle">Add completion photos</h1><p id="photoJobMeta">Keep each photo attached to the correct work order.</p></div></section>
+    <section class="form-card"><div class="card-title"><div><h2>Required photos & tests</h2><p>Choose photos from your gallery or take new ones. Each photo saves to this device before it uploads.</p></div></div><p class="photo-sync-note" id="photoSyncNote"></p><div id="jobPhotoChecklist"></div></section>
+    <section class="form-card"><button class="primary wide" data-view="detail">Back to job details</button></section>
+  </template>
+  <script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistration('./').then(registration=>registration?.update())}</script>
+  <script defer src="field-manager.js?v=67"></script>
+</body>
+</html>

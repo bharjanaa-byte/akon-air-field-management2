@@ -1,0 +1,90 @@
+import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createClient } from '@supabase/supabase-js';
+
+export const env = (name) => {
+  const value = process.env[name];
+  if (!value) throw new Error(`Missing required server setting: ${name}`);
+  return value;
+};
+
+export const admin = () => createClient(env('SUPABASE_URL'), env('SUPABASE_SERVICE_ROLE_KEY'), {
+  auth: { persistSession: false, autoRefreshToken: false }
+});
+
+export async function authenticatedMembership(request) {
+  const token = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
+  if (!token) throw new Error('Sign in is required.');
+  const response = await fetch(`${env('SUPABASE_URL')}/auth/v1/user`, {
+    headers: { apikey: env('SUPABASE_SERVICE_ROLE_KEY'), authorization: `Bearer ${token}` }
+  });
+  if (!response.ok) throw new Error('Your sign-in session has expired.');
+  const user = await response.json();
+  const { data, error } = await admin().from('company_members')
+    .select('company_id, user_id').eq('user_id', user.id).maybeSingle();
+  if (error || !data) throw new Error('This account is not part of the Akon Air workspace.');
+  return { user, membership: data };
+}
+
+const sign = (value) => createHmac('sha256', env('OAUTH_STATE_SECRET')).update(value).digest('base64url');
+export function makeState(payload) {
+  const body = Buffer.from(JSON.stringify({ ...payload, createdAt: Date.now() })).toString('base64url');
+  return `${body}.${sign(body)}`;
+}
+export function readState(value) {
+  const [body, signature] = String(value || '').split('.');
+  if (!body || !signature) throw new Error('Invalid Google connection request.');
+  const expected = Buffer.from(sign(body));
+  const received = Buffer.from(signature);
+  if (expected.length !== received.length || !timingSafeEqual(expected, received)) throw new Error('Invalid Google connection request.');
+  const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'));
+  if (Date.now() - payload.createdAt > 15 * 60 * 1000) throw new Error('Google connection request expired. Please try again.');
+  return payload;
+}
+
+export const siteUrl = (request) => process.env.URL || new URL(request.url).origin;
+export const callbackUrl = (request) => `${siteUrl(request)}/.netlify/functions/gmail-oauth-callback`;
+export const json = (body, status = 200) => new Response(JSON.stringify(body), {
+  status,
+  headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }
+});
+
+export function parseDispatch(text) {
+  const chunks = String(text || '').split(/(?=WO-\s*\d+)/i).filter(part => /WO-\s*\d+/i.test(part));
+  const month = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, sept: 8, oct: 9, nov: 10, dec: 11 };
+  const isoDate = (value) => {
+    const match = value.match(/([A-Za-z]+)\s+(\d{1,2}),\s+(\d{4})/);
+    if (!match) return '';
+    const index = month[match[1].toLowerCase()];
+    if (index === undefined) return '';
+    return `${match[3]}-${String(index + 1).padStart(2, '0')}-${match[2].padStart(2, '0')}`;
+  };
+  const timeStamp = (value) => {
+    const day = isoDate(value);
+    const clock = value.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+    if (!day || !clock) return null;
+    let hour = Number(clock[1]) % 12;
+    if (clock[3].toUpperCase() === 'PM') hour += 12;
+    return `${day}T${String(hour).padStart(2, '0')}:${clock[2]}:00`;
+  };
+  return chunks.map((segment) => {
+    const workOrder = segment.match(/WO-\s*\d+/i)?.[0].replace(/\s+/g, '').toUpperCase();
+    const times = [...segment.matchAll(/(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep(?:t)?|Oct|Nov|Dec)\s+\d{1,2},\s+\d{4}\s+\d{1,2}:\d{2}\s*(?:AM|PM)/gi)].map(match => match[0]);
+    const phone = segment.match(/\+1\d{10}/)?.[0] || segment.match(/\+?\d[\d\s()\-]{8,}\d/)?.[0] || '';
+    const postal = segment.match(/\b([A-Z]\d[A-Z]\d[A-Z]\d)\b/i);
+    const phoneAt = phone ? segment.indexOf(phone) : -1;
+    const postalAt = postal ? segment.indexOf(postal[0]) : -1;
+    const address = phoneAt >= 0 && postalAt > phoneAt ? segment.slice(phoneAt + phone.length, postalAt).trim() : '';
+    // The last column (notes) can be cut off or run directly after the city.
+    // Keep only the initial capitalized city name and deliberately ignore the rest.
+    const city = postal ? (segment.slice(postalAt + postal[0].length).trim().match(/^([A-Z][a-z.]+(?:[ -][A-Z][a-z.]+){0,2})/)?.[1] || '') : '';
+    const assetStart = times[1] ? segment.indexOf(times[1]) + times[1].length : (times[0] ? segment.indexOf(times[0]) + times[0].length : 0);
+    const equipment = phoneAt > assetStart ? segment.slice(assetStart, phoneAt).trim() : '';
+    const workType = /Air Conditioner/i.test(equipment) ? 'Air Conditioner' : /Tankless/i.test(equipment) ? 'Tankless (Replacement)' : /Furnace|Air Handler/i.test(equipment) ? 'Furnace / Air Handler' : /Water Heater|WHGS|Bradford White|PV50/i.test(equipment) ? 'Conventional Water Heater' : 'Custom / Other';
+    return {
+      workOrder, date: isoDate(times[0] || ''), appointmentStart: timeStamp(times[0] || ''), appointmentEnd: timeStamp(times[1] || ''),
+      source: 'goline', status: 'Assigned', workType, customer: 'GoLime customer', phone,
+      address: [address, city, postal?.[1]].filter(Boolean).join(', '), equipment,
+      notes: `Imported automatically from GoLime Master Dispatch. Scheduled ${times[0] || ''}${times[1] ? ` to ${times[1]}` : ''}.`, extras: []
+    };
+  }).filter(job => job.workOrder && job.date);
+}
