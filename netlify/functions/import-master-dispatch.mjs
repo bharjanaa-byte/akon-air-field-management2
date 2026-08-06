@@ -7,4 +7,6 @@ export default async () => {
 
 // Netlify cron uses UTC. Running at both offsets keeps the 9:40 AM Toronto
 // import working across daylight-saving changes; duplicate emails are skipped.
-export const config = { schedule: '40 13,14 * * 1-5' };
+// Retry during the Toronto workday. Gmail delivery can be late, while the
+// importer safely skips a dispatch that has already been processed.
+export const config = { schedule: '*/15 13-19 * * 1-5' };
