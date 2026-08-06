@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -32,20 +32,20 @@
 <body>
   <header class="topbar">
     <button class="header-date" data-view="dashboard" aria-label="Go to dashboard"><span id="headerDate">Today</span><strong id="headerTime"></strong></button>
-    <button class="header-today" data-view="jobs"><span>Todayâ€™s schedule</span><strong id="headerJobCount">0 jobs</strong></button>
-    <button class="icon-button" id="installButton" aria-label="Install app" hidden>â†“</button>
+    <button class="header-today" data-view="jobs"><span>Today’s schedule</span><strong id="headerJobCount">0 jobs</strong></button>
+    <button class="icon-button" id="installButton" aria-label="Install app" hidden>↓</button>
   </header>
 
   <main id="app"></main>
   <nav class="bottom-nav" aria-label="Main navigation">
-    <button data-view="dashboard" class="active"><span>âŒ‚</span>Home</button>
-    <button data-view="jobs"><span>â–£</span>Jobs</button>
+    <button data-view="dashboard" class="active"><span>⌂</span>Home</button>
+    <button data-view="jobs"><span>▣</span>Jobs</button>
     <button data-view="money"><span>$</span>Owed</button>
-    <button data-view="travel"><span>âŒ</span>Travel</button>
-    <button data-view="extras"><span>ï¼‹</span>Extras</button>
-    <button data-view="claims"><span>â–¤</span>Claims</button>
-    <button data-view="calendar"><span>â–¡</span>Calendar</button>
-    <button data-view="files"><span>â–¤</span>Files</button>
+    <button data-view="travel"><span>⌁</span>Travel</button>
+    <button data-view="extras"><span>＋</span>Extras</button>
+    <button data-view="claims"><span>▤</span>Claims</button>
+    <button data-view="calendar"><span>□</span>Calendar</button>
+    <button data-view="files"><span>▤</span>Files</button>
   </nav>
 
   <template id="login-template">
@@ -53,32 +53,32 @@
   </template>
 
   <template id="dashboard-template">
-    <section class="hero"><img class="hero-logo" src="akon-air-mark.png" alt="Akon Air"><span class="hero-tagline">Comfort Feels Like Home</span><div class="hero-content"><p class="eyebrow">FIELD OPERATIONS</p><h1>Good day, Amrit & Karan.</h1><p>Keep jobs, proof of completion, and payments in one place.</p></div><div class="hero-actions"><button class="primary wide" data-action="new-job">ï¼‹ Create new job</button><button class="hero-secondary" data-action="import-dispatch">â‡§ Import Master Dispatch</button></div></section>
+    <section class="hero"><img class="hero-logo" src="akon-air-mark.png" alt="Akon Air"><span class="hero-tagline">Comfort Feels Like Home</span><div class="hero-content"><p class="eyebrow">FIELD OPERATIONS</p><h1>Good day, Amrit & Karan.</h1><p>Keep jobs, proof of completion, and payments in one place.</p></div><div class="hero-actions"><button class="primary wide" data-action="new-job">＋ Create new job</button><button class="hero-secondary" data-action="import-dispatch">⇧ Import Master Dispatch</button></div></section>
     <section class="stat-grid" id="statGrid"></section>
     <section class="section-heading"><div><p class="eyebrow">GOLIME PAYMENTS</p><h2>What GoLime owes</h2></div><button class="secondary small" data-view="money">View details</button></section>
     <section class="stat-grid" id="homeOwedBreakdown"></section><section class="home-hst" id="homeOwedTax"></section>
     <section class="section-heading"><div><p class="eyebrow">FIELD TOOLS</p><h2>Run your day</h2></div></section>
     <div id="recentJobs" class="card-list"></div>
-    <section class="form-card" id="emailDispatchCard"><p class="eyebrow">AUTOMATIC DISPATCH</p><h2>Master Dispatch email</h2><p id="emailDispatchStatus">Checking automatic-import setupâ€¦</p><button class="secondary wide" data-action="connect-gmail">Connect Gmail</button><button class="secondary wide" data-action="check-dispatch" hidden>Check Gmail now</button></section>
+    <section class="form-card" id="emailDispatchCard"><p class="eyebrow">AUTOMATIC DISPATCH</p><h2>Master Dispatch email</h2><p id="emailDispatchStatus">Checking automatic-import setup…</p><button class="secondary wide" data-action="connect-gmail">Connect Gmail</button><button class="secondary wide" data-action="check-dispatch" hidden>Check Gmail now</button></section>
   </template>
 
   <template id="job-choice-template">
-    <section class="page-title"><button class="back" data-view="dashboard">â€¹</button><div><p class="eyebrow">NEW JOB</p><h1>Who is this job for?</h1><p>Choose the workflow that matches the job.</p></div></section>
+    <section class="page-title"><button class="back" data-view="dashboard">‹</button><div><p class="eyebrow">NEW JOB</p><h1>Who is this job for?</h1><p>Choose the workflow that matches the job.</p></div></section>
     <div class="choice-grid">
-      <button class="choice-card goline" data-action="choose-source" data-source="goline"><img class="choice-logo" src="goline-logo.jpg" alt="GoLime logo"><strong>GoLime</strong><small>Subcontracted work with work orders, GoLime rates, completion proof and payment tracking.</small><span class="arrow">â†’</span></button>
-      <button class="choice-card akon" data-action="choose-source" data-source="akon"><span class="choice-icon">A</span><strong>Akon Air</strong><small>Direct customer work with your own customer record and invoice-ready job details.</small><span class="arrow">â†’</span></button>
+      <button class="choice-card goline" data-action="choose-source" data-source="goline"><img class="choice-logo" src="goline-logo.jpg" alt="GoLime logo"><strong>GoLime</strong><small>Subcontracted work with work orders, GoLime rates, completion proof and payment tracking.</small><span class="arrow">→</span></button>
+      <button class="choice-card akon" data-action="choose-source" data-source="akon"><span class="choice-icon">A</span><strong>Akon Air</strong><small>Direct customer work with your own customer record and invoice-ready job details.</small><span class="arrow">→</span></button>
     </div>
   </template>
 
   <template id="job-form-template">
-    <section class="page-title"><button class="back" data-view="job-choice">â€¹</button><div><p class="eyebrow" id="jobSourceLabel"></p><h1 id="jobFormTitle">New job</h1><p id="jobFormSubtitle"></p></div></section>
+    <section class="page-title"><button class="back" data-view="job-choice">‹</button><div><p class="eyebrow" id="jobSourceLabel"></p><h1 id="jobFormTitle">New job</h1><p id="jobFormSubtitle"></p></div></section>
     <form id="jobForm" class="form-stack">
       <section class="form-card"><h2>Job details</h2><div class="form-grid">
         <label class="full goline-only">Work Order Number <em>Required</em><input name="workOrder" required placeholder="e.g. GL-45872"></label>
         <label>Appointment date<input name="date" type="date" required></label>
         <label>Job status<select name="status"><option>Assigned</option><option>In Progress</option><option>Waiting for Parts</option><option>Completed</option><option>Submitted to GoLime</option><option>Paid</option></select></label>
         <label class="full">Installation / work type<select name="workType" id="workType" required></select></label>
-        <label class="full">Job notes<textarea name="notes" rows="3" placeholder="Access notes, job details, equipment informationâ€¦"></textarea></label>
+        <label class="full">Job notes<textarea name="notes" rows="3" placeholder="Access notes, job details, equipment information…"></textarea></label>
       </div></section>
       <section class="form-card"><h2>Customer information</h2><div class="form-grid">
         <label>Customer name<input name="customer" required placeholder="Full name"></label>
@@ -89,14 +89,14 @@
       </div></section>
       <section class="form-card goline-only"><div class="card-title"><div><h2>GoLime rate</h2><p>Base rate updates when you select the work type.</p></div><strong id="baseRate">$0.00</strong></div></section>
       <section class="form-card goline-only" id="customChargeCard" hidden><h2>Custom GoLime charge</h2><p>Enter the agreed amount for a job that is not on the GoLime rate sheet.</p><label>Base job amount<input id="customChargeAmount" name="customAmount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00"></label></section>
-      <section class="form-card goline-only"><div class="card-title"><div><h2>Extras</h2><p>Add approved custom charges to this job.</p></div><button type="button" class="secondary small" id="addExtra">ï¼‹ Add extra</button></div><div id="extrasList" class="extras-list"></div><div class="total-line"><span>Total extras</span><strong id="extrasTotal">$0.00</strong></div></section>
+      <section class="form-card goline-only"><div class="card-title"><div><h2>Extras</h2><p>Add approved custom charges to this job.</p></div><button type="button" class="secondary small" id="addExtra">＋ Add extra</button></div><div id="extrasList" class="extras-list"></div><div class="total-line"><span>Total extras</span><strong id="extrasTotal">$0.00</strong></div></section>
       <section class="form-card goline-only"><div class="card-title"><div><h2>Required photos & tests</h2><p id="photoHelp">Select an installation type to load the GoLime checklist.</p></div></div><div id="photoChecklist"></div></section>
       <section class="form-card"><button type="submit" class="primary wide">Save job</button></section>
     </form>
   </template>
 
   <template id="jobs-template">
-    <section class="page-title"><div><p class="eyebrow">JOB RECORDS</p><h1>All jobs</h1><p>Your field work, organized in one place.</p></div><button class="round-add" data-action="new-job">ï¼‹</button></section>
+    <section class="page-title"><div><p class="eyebrow">JOB RECORDS</p><h1>All jobs</h1><p>Your field work, organized in one place.</p></div><button class="round-add" data-action="new-job">＋</button></section>
     <section class="form-card" style="margin-bottom:12px"><p class="eyebrow">SOURCE & STATUS</p><div class="filters"><button class="filter active" data-filter="all">All</button><button class="filter" data-filter="goline">GoLime</button><button class="filter" data-filter="akon">Akon Air</button><button class="filter" data-filter="open">Active</button><button class="filter" data-filter="completed">Completed</button><button class="filter" data-filter="submitted">Submitted</button><button class="filter" data-filter="paid">Paid</button><button class="filter" data-filter="history">History</button></div><p class="eyebrow" style="margin-top:16px">DATE RANGE</p><div class="filters"><button class="date-filter active" data-date-filter="all">All dates</button><button class="date-filter" data-date-filter="today">Today</button><button class="date-filter" data-date-filter="3">3 days</button><button class="date-filter" data-date-filter="7">7 days</button><button class="date-filter" data-date-filter="30">30 days</button></div><label style="display:block;margin-top:12px;font-size:12px;color:var(--muted)">Specific date<input id="jobExactDate" type="date" style="margin-top:5px"></label></section>
     <div class="card-list" id="allJobs"></div>
   </template>
@@ -120,8 +120,8 @@
     <section class="page-title"><div><p class="eyebrow">GOLIME REIMBURSEMENT</p><h1>Travel pay</h1><p>Daily mileage from the GoLime warehouse to the farthest job.</p></div></section>
     <section class="form-card"><div class="form-grid"><label class="full">GoLime warehouse start point<input id="warehouseAddress" value="273 Bowes Rd, Vaughan, ON L4K 1H8"></label><label class="full">Job date<input id="travelDate" type="date"></label></div></section>
     <section class="amount-card"><p>Expected travel pay</p><strong id="travelAmount">$0.00</strong><span id="travelFormula">Calculate a route to see the reimbursement.</span></section>
-    <section class="travel-grid"><div class="travel-metric"><span>Farthest one-way distance</span><strong id="farthestKm">â€”</strong></div><div class="travel-metric"><span>Reimbursable kilometres</span><strong id="reimbursableKm">â€”</strong></div></section>
-    <section class="form-card"><h2>Calculate from day's jobs</h2><p class="travel-status" id="travelStatus">Uses driving routes from the warehouse to every GoLime job on the selected date.</p><button class="primary wide" data-action="calculate-travel">Calculate travel pay</button><button class="secondary wide" id="addTravelToClaim" data-action="add-travel-claim" style="margin-top:9px" disabled>Add this day to claims</button><p class="travel-note">Formula: (farthest one-way route Ã— 2 âˆ’ 75 km) Ã— $0.75. The first 75 km are not reimbursed.</p></section>
+    <section class="travel-grid"><div class="travel-metric"><span>Farthest one-way distance</span><strong id="farthestKm">—</strong></div><div class="travel-metric"><span>Reimbursable kilometres</span><strong id="reimbursableKm">—</strong></div></section>
+    <section class="form-card"><h2>Calculate from day's jobs</h2><p class="travel-status" id="travelStatus">Uses driving routes from the warehouse to every GoLime job on the selected date.</p><button class="primary wide" data-action="calculate-travel">Calculate travel pay</button><button class="secondary wide" id="addTravelToClaim" data-action="add-travel-claim" style="margin-top:9px" disabled>Add this day to claims</button><p class="travel-note">Formula: (farthest one-way route × 2 − 75 km) × $0.75. The first 75 km are not reimbursed.</p></section>
     <section class="form-card"><h2>Manual distance fallback</h2><p class="travel-status">Use this only if a job address cannot be mapped.</p><div class="manual-travel"><label>Farthest one-way distance (km)<input id="manualTravelKm" type="number" min="0" step="0.1" placeholder="e.g. 92.5"></label><button class="secondary" data-action="apply-manual-travel">Use distance</button></div></section>
     <section class="section-heading"><div><p class="eyebrow">ROUTE CHECK</p><h2>GoLime jobs included</h2></div></section><div id="travelRoutes" class="card-list"></div>
     <section class="section-heading"><div><p class="eyebrow">SAVED MILEAGE</p><h2>Travel history</h2></div><button class="text-button" data-view="claims">View claims</button></section><div id="travelHistory" class="card-list"></div>
@@ -144,28 +144,28 @@
 
   <template id="calendar-template">
     <section class="page-title"><div><p class="eyebrow">SCHEDULE</p><h1>Calendar</h1><p>A simple view of every scheduled job.</p></div></section>
-    <section class="calendar-card"><div class="calendar-header"><button id="prevMonth">â€¹</button><h2 id="monthName"></h2><button id="nextMonth">â€º</button></div><div class="calendar-weekdays"><span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span></div><div id="calendarGrid" class="calendar-grid"></div></section>
+    <section class="calendar-card"><div class="calendar-header"><button id="prevMonth">‹</button><h2 id="monthName"></h2><button id="nextMonth">›</button></div><div class="calendar-weekdays"><span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span></div><div id="calendarGrid" class="calendar-grid"></div></section>
     <p class="legend"><i class="dot goline-dot"></i> GoLime <i class="dot akon-dot"></i> Akon Air</p>
     <section class="section-heading day-jobs-heading"><div><p class="eyebrow">SELECTED DAY</p><h2 id="selectedDayTitle">Jobs</h2></div></section><div class="card-list" id="selectedDayJobs"></div>
   </template>
 
   <template id="dispatch-import-template">
-    <section class="page-title"><button class="back" data-view="dashboard">â€¹</button><div><p class="eyebrow">GOLIME DISPATCH</p><h1>Import Master Dispatch</h1><p>Add the day's assigned jobs from GoLime's PDF.</p></div></section>
+    <section class="page-title"><button class="back" data-view="dashboard">‹</button><div><p class="eyebrow">GOLIME DISPATCH</p><h1>Import Master Dispatch</h1><p>Add the day's assigned jobs from GoLime's PDF.</p></div></section>
     <section class="form-card import-card"><h2>Choose the dispatch PDF</h2><p>This importer reads work order, time, equipment, phone, and address. It deliberately ignores Work Order Notes.</p><label class="file-picker">Choose Master Dispatch PDF<input id="dispatchFile" type="file" accept="application/pdf"></label><p id="dispatchStatus" class="import-status">No PDF selected.</p></section>
     <section id="dispatchPreview" hidden><section class="section-heading"><div><p class="eyebrow">REVIEW</p><h2 id="dispatchCount">Imported jobs</h2></div></section><div class="card-list" id="dispatchJobs"></div><button id="confirmDispatchImport" class="primary wide">Add jobs to calendar</button></section>
   </template>
 
   <template id="detail-template">
-    <section class="page-title"><button class="back" data-view="jobs">â€¹</button><div><p class="eyebrow" id="detailSource"></p><h1 id="detailTitle"></h1><p id="detailMeta"></p></div></section>
+    <section class="page-title"><button class="back" data-view="jobs">‹</button><div><p class="eyebrow" id="detailSource"></p><h1 id="detailTitle"></h1><p id="detailMeta"></p></div></section>
     <div id="jobDetail"></div>
   </template>
 
   <template id="job-photos-template">
-    <section class="page-title"><button class="back" data-view="detail">â€¹</button><div><p class="eyebrow">GOLIME JOB PHOTOS</p><h1 id="photoJobTitle">Add completion photos</h1><p id="photoJobMeta">Keep each photo attached to the correct work order.</p></div></section>
+    <section class="page-title"><button class="back" data-view="detail">‹</button><div><p class="eyebrow">GOLIME JOB PHOTOS</p><h1 id="photoJobTitle">Add completion photos</h1><p id="photoJobMeta">Keep each photo attached to the correct work order.</p></div></section>
     <section class="form-card"><div class="card-title"><div><h2>Required photos & tests</h2><p>Choose photos from your gallery or take new ones. Each photo saves to this device before it uploads.</p></div></div><p class="photo-sync-note" id="photoSyncNote"></p><div id="jobPhotoChecklist"></div></section>
     <section class="form-card"><button class="primary wide" data-view="detail">Back to job details</button></section>
   </template>
   <script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistration('./').then(registration=>registration?.update())}</script>
-  <script defer src="field-manager.js?v=69"></script>
+  <script defer src="field-manager.js?v=70"></script>
 </body>
 </html>
