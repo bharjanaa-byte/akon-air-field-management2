@@ -64,7 +64,7 @@
   </template>
 
   <template id="job-choice-template">
-    <section class="page-title"><button class="back" data-view="dashboard"> </button><div><p class="eyebrow">NEW JOB</p><h1>Who is this job for?</h1><p>Choose the workflow that matches the job.</p></div></section>
+    <section class="page-title"><button class="back" data-view="dashboard" aria-label="Go back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5 7.5 12l7 7M8 12h9"/></svg></button><div><p class="eyebrow">NEW JOB</p><h1>Who is this job for?</h1><p>Choose the workflow that matches the job.</p></div></section>
     <div class="choice-grid">
       <button class="choice-card goline" data-action="choose-source" data-source="goline"><img class="choice-logo" src="goline-logo.jpg" alt="GoLime logo"><strong>GoLime</strong><small>Subcontracted work with work orders, GoLime rates, completion proof and payment tracking.</small><span class="arrow"> </span></button>
       <button class="choice-card akon" data-action="choose-source" data-source="akon"><span class="choice-icon">A</span><strong>Akon Air</strong><small>Direct customer work with your own customer record and invoice-ready job details.</small><span class="arrow"> </span></button>
@@ -72,7 +72,7 @@
   </template>
 
   <template id="job-form-template">
-    <section class="page-title"><button class="back" data-view="job-choice"> </button><div><p class="eyebrow" id="jobSourceLabel"></p><h1 id="jobFormTitle">New job</h1><p id="jobFormSubtitle"></p></div></section>
+    <section class="page-title"><button class="back" data-view="job-choice" aria-label="Go back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5 7.5 12l7 7M8 12h9"/></svg></button><div><p class="eyebrow" id="jobSourceLabel"></p><h1 id="jobFormTitle">New job</h1><p id="jobFormSubtitle"></p></div></section>
     <form id="jobForm" class="form-stack">
       <section class="form-card"><h2>Job details</h2><div class="form-grid">
         <label class="full goline-only">Work Order Number <em>Required</em><input name="workOrder" required placeholder="e.g. GL-45872"></label>
@@ -150,18 +150,18 @@
   </template>
 
   <template id="dispatch-import-template">
-    <section class="page-title"><button class="back" data-view="dashboard"> </button><div><p class="eyebrow">GOLIME DISPATCH</p><h1>Import Master Dispatch</h1><p>Add the day's assigned jobs from GoLime's PDF.</p></div></section>
+    <section class="page-title"><button class="back" data-view="dashboard" aria-label="Go back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5 7.5 12l7 7M8 12h9"/></svg></button><div><p class="eyebrow">GOLIME DISPATCH</p><h1>Import Master Dispatch</h1><p>Add the day's assigned jobs from GoLime's PDF.</p></div></section>
     <section class="form-card import-card"><h2>Choose the dispatch PDF</h2><p>This importer reads work order, time, equipment, phone, and address. It deliberately ignores Work Order Notes.</p><label class="file-picker">Choose Master Dispatch PDF<input id="dispatchFile" type="file" accept="application/pdf"></label><p id="dispatchStatus" class="import-status">No PDF selected.</p></section>
     <section id="dispatchPreview" hidden><section class="section-heading"><div><p class="eyebrow">REVIEW</p><h2 id="dispatchCount">Imported jobs</h2></div></section><div class="card-list" id="dispatchJobs"></div><button id="confirmDispatchImport" class="primary wide">Add jobs to calendar</button></section>
   </template>
 
   <template id="detail-template">
-    <section class="page-title"><button class="back" data-view="jobs"> </button><div><p class="eyebrow" id="detailSource"></p><h1 id="detailTitle"></h1><p id="detailMeta"></p></div></section>
+    <section class="page-title"><button class="back" data-view="jobs" aria-label="Go back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5 7.5 12l7 7M8 12h9"/></svg></button><div><p class="eyebrow" id="detailSource"></p><h1 id="detailTitle"></h1><p id="detailMeta"></p></div></section>
     <div id="jobDetail"></div>
   </template>
 
   <template id="job-photos-template">
-    <section class="page-title"><button class="back" data-view="detail"> </button><div><p class="eyebrow">GOLIME JOB PHOTOS</p><h1 id="photoJobTitle">Add completion photos</h1><p id="photoJobMeta">Keep each photo attached to the correct work order.</p></div></section>
+    <section class="page-title"><button class="back" data-view="detail" aria-label="Go back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5 7.5 12l7 7M8 12h9"/></svg></button><div><p class="eyebrow">GOLIME JOB PHOTOS</p><h1 id="photoJobTitle">Add completion photos</h1><p id="photoJobMeta">Keep each photo attached to the correct work order.</p></div></section>
     <section class="form-card"><div class="card-title"><div><h2>Required photos & tests</h2><p>Choose photos from your gallery or take new ones. Each photo saves to this device before it uploads.</p></div></div><p class="photo-sync-note" id="photoSyncNote"></p><div id="jobPhotoChecklist"></div></section>
     <section class="form-card"><button class="primary wide" data-view="detail">Back to job details</button></section>
   </template>
@@ -172,7 +172,7 @@
     <section class="form-card"><p class="eyebrow">SHARED WORKSPACE</p><h2>Device sync</h2><p id="sharedSyncStatus">Checking shared-device sync...</p><button class="primary wide" data-action="sync-now">Sync all devices now</button></section>
     <section class="form-card"><p class="eyebrow">ACCOUNT</p><h2>Signed-in user</h2><p id="settingsAccount" class="travel-status">Checking account...</p><button class="secondary wide" data-action="sign-out">Sign out of this device</button></section>
   </template>  <script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistration('./').then(registration=>registration?.update())}</script>
-  <script defer src="field-manager.js?v=92"></script>
+  <script defer src="field-manager.js?v=93"></script>
 </body>
 </html>
 
