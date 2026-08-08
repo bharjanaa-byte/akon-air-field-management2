@@ -27,6 +27,13 @@
     @media(min-width:700px){:root{--side-nav:90px}main{width:min(900px,calc(100% - var(--side-nav) - 28px));margin-left:calc(var(--side-nav) + 14px);padding-left:18px;padding-right:18px}.bottom-nav{padding-left:9px;padding-right:9px}.bottom-nav button{min-height:62px;font-size:10px}.bottom-nav span{font-size:25px!important}.hero{padding:22px}.hero-logo{width:245px;max-height:72px}}
     @media(max-width:380px){:root{--side-nav:70px}.bottom-nav{padding-left:5px;padding-right:5px}.bottom-nav button{min-height:54px}}
   </style>
+  <style>
+    .splash-screen{min-height:72vh;display:grid;place-content:center;justify-items:center;text-align:center;padding:30px 16px}
+    .splash-screen img{width:min(300px,82vw);height:auto;object-fit:contain;filter:drop-shadow(0 12px 22px rgba(8,66,105,.15))}
+    .splash-screen p{margin:14px 0 0;color:#47718a;font-size:14px;font-style:italic;font-weight:700;letter-spacing:.5px}
+    .splash-spinner{width:28px;height:28px;margin-top:26px;border:3px solid #dbeaf3;border-top-color:#1680be;border-radius:50%;animation:akon-spin .8s linear infinite}
+    @keyframes akon-spin{to{transform:rotate(360deg)}}
+  </style>
   <title>Akon Air Field Management</title>
 </head>
 <body>
@@ -51,6 +58,13 @@
 
   <template id="login-template">
     <section class="login-shell"><img src="akon-air-mark.png" alt="Akon Air" class="login-logo"><p class="eyebrow">FIELD MANAGEMENT</p><h1>Akon Air</h1><p>Sign in to access your shared jobs, completion photos, travel records, and claims.</p><form id="loginForm" class="form-stack"><label>Email<input name="email" type="email" autocomplete="email" required placeholder="you@example.com"></label><label>Password<input name="password" type="password" autocomplete="current-password" required placeholder="Your password"></label><button class="primary wide" type="submit">Sign in</button><p id="loginStatus" class="travel-status"></p></form></section>
+  </template>
+  <template id="splash-template">
+    <section class="splash-screen" aria-label="Opening Akon Air Field Management">
+      <img src="akon-air-mark.png" alt="Akon Air">
+      <p>Comfort Feels Like Home</p>
+      <span class="splash-spinner" aria-label="Loading"></span>
+    </section>
   </template>
 
   <template id="dashboard-template">
@@ -171,6 +185,6 @@
     <section class="form-card"><p class="eyebrow">SHARED WORKSPACE</p><h2>Device sync</h2><p id="sharedSyncStatus">Checking shared-device sync...</p><button class="primary wide" data-action="sync-now">Sync all devices now</button></section>
     <section class="form-card"><p class="eyebrow">ACCOUNT</p><h2>Signed-in user</h2><p id="settingsAccount" class="travel-status">Checking account...</p><button class="secondary wide" data-action="sign-out">Sign out of this device</button></section>
   </template>  <script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistration('./').then(registration=>registration?.update())}</script>
-  <script defer src="field-manager.js?v=81"></script>
+  <script defer src="field-manager.js?v=82"></script>
 </body>
 </html>
