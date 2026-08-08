@@ -20,7 +20,7 @@
     .bottom-nav button{flex:0 0 auto;width:100%;min-height:57px;height:auto;padding:7px 2px;border:0;border-radius:12px;background:transparent!important;display:grid!important;place-items:center;align-content:center;gap:4px;font-size:9px;color:#617886}
     .bottom-nav span{font-size:23px!important;line-height:24px!important;font-style:normal}.bottom-nav .nav-icon{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.bottom-nav button[data-view="dashboard"] .nav-icon path:first-child{fill:currentColor;stroke:none}.action-icon{height:19px;display:grid;place-items:center}.action-icon svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
     .bottom-nav button.active{background:rgba(255,255,255,.52)!important;color:#075b94!important;box-shadow:0 1px 8px rgba(10,52,68,.07)}
-    .bottom-nav button[data-view="dashboard"] .nav-icon{color:#1976b8}.bottom-nav button[data-view="jobs"] .nav-icon{color:#405a74}.bottom-nav button[data-view="money"] .nav-icon{color:#16855b}.bottom-nav button[data-view="travel"] .nav-icon{color:#c96e1a}.bottom-nav button[data-view="extras"] .nav-icon{color:#9a4fbd}.bottom-nav button[data-view="claims"] .nav-icon{color:#0e72af}.bottom-nav button[data-view="calendar"] .nav-icon{color:#6957a8}.bottom-nav button[data-view="files"] .nav-icon{color:#52717f}.bottom-nav button[data-view="settings"] .nav-icon{color:#687789}
+    .bottom-nav button[data-view="dashboard"] .nav-icon{color:#1976b8}.bottom-nav button[data-view="jobs"] .nav-icon{color:#405a74}.bottom-nav button[data-view="money"] .nav-icon{color:#16855b}.bottom-nav button[data-view="travel"] .nav-icon{color:#c96e1a}.bottom-nav button[data-view="locations"] .nav-icon{color:#1d8b85}.bottom-nav button[data-view="extras"] .nav-icon{color:#9a4fbd}.bottom-nav button[data-view="claims"] .nav-icon{color:#0e72af}.bottom-nav button[data-view="calendar"] .nav-icon{color:#6957a8}.bottom-nav button[data-view="files"] .nav-icon{color:#52717f}.bottom-nav button[data-view="settings"] .nav-icon{color:#687789}
     .hero{padding:18px;display:flex;flex-direction:column;align-items:stretch}.hero-logo{position:static;align-self:center;width:min(220px,100%);height:auto;max-height:64px;object-fit:contain;object-position:center;margin:0 0 2px}.hero-tagline{position:static;align-self:center;width:auto;text-align:center;margin:0 0 15px;color:#f4fbff;font-size:13px;line-height:1.2;text-shadow:0 1px 2px #062b48}.hero-content{max-width:none;text-align:center}.hero-actions{margin-top:16px}
     .home-hst{margin:-6px 0 18px;padding:10px 13px;border:1px solid rgba(22,133,91,.2);border-radius:13px;background:rgba(233,247,238,.62);display:flex;align-items:center;justify-content:space-between;gap:12px;color:#48665a;font-size:11px}.home-hst strong{color:#19734f;font-size:13px}.home-hst b{color:#173f2d}
     .photo-sync-note{margin:10px 0 2px;padding:9px 10px;border-radius:10px;background:rgba(234,245,252,.72);color:#486575;font-size:11px;line-height:1.35}.photo-category.uploading{opacity:.72}.photo-thumb .thumb:not([src]){background:linear-gradient(135deg,#e8f2f7,#d4e3eb)}
@@ -41,7 +41,7 @@
     <button data-view="dashboard" class="active"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Home</button>
     <button data-view="jobs"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 12h18M10 12v2h4v-2"/></svg>Jobs</button>
     <button data-view="money"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M14.5 8.7c-.5-.8-1.4-1.2-2.5-1.2-1.4 0-2.4.7-2.4 1.8 0 2.6 5 1.1 5 4 0 1.1-1 1.9-2.6 1.9-1.2 0-2.2-.5-2.7-1.3M12 6v12"/></svg>Owed</button>
-    <button data-view="travel"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 16h14l-1.3-6.1A2 2 0 0 0 15.8 8H8.2a2 2 0 0 0-1.9 1.9z"/><path d="M4 16v2a1 1 0 0 0 1 1h1m12 0h1a1 1 0 0 0 1-1v-2M7 19h10M7 13h.01M17 13h.01"/></svg>Travel</button>
+    <button data-view="travel"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 16h14l-1.3-6.1A2 2 0 0 0 15.8 8H8.2a2 2 0 0 0-1.9 1.9z"/><path d="M4 16v2a1 1 0 0 0 1 1h1m12 0h1a1 1 0 0 0 1-1v-2M7 19h10M7 13h.01M17 13h.01"/></svg>Travel</button>    <button data-view="locations"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-6.1 7-12a7 7 0 1 0-14 0c0 5.9 7 12 7 12z"/><circle cx="12" cy="9" r="2.3"/></svg>Places</button>
     <button data-view="extras"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>Extras</button>
     <button data-view="claims"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4.5h6v3H9zM9 11h6M9 15h4"/></svg>Claims</button>
     <button data-view="calendar"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16M8 14h.01M12 14h.01M16 14h.01M8 17h.01M12 17h.01"/></svg>Calendar</button>
@@ -59,11 +59,15 @@
     <section class="section-heading"><div><p class="eyebrow">GOLIME PAYMENTS</p><h2>What GoLime owes</h2></div><button class="secondary small" data-view="money">View details</button></section>
     <section class="stat-grid" id="homeOwedBreakdown"></section><section class="home-hst" id="homeOwedTax"></section>
     <section class="section-heading"><div><p class="eyebrow">FIELD TOOLS</p><h2>Run your day</h2></div></section>
-    <div id="recentJobs" class="card-list"></div>
+    <div id="recentJobs" class="card-list"></div>    <section class="section-heading" style="margin-top:28px"><div><p class="eyebrow">SAVED LOCATIONS</p><h2>Quick directions</h2></div><button class="secondary small" data-view="locations">Manage</button></section><div id="homeLocations" class="card-list"></div>
     
   </template>
 
-  <template id="job-choice-template">
+  <template id="locations-template">
+    <section class="page-title"><button class="back" data-view="dashboard" aria-label="Go back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5 7.5 12l7 7M8 12h9"/></svg></button><div><p class="eyebrow">SAVED LOCATIONS</p><h1>Places</h1><p>Save frequently used addresses and open them in Google Maps.</p></div></section>
+    <section class="form-card"><h2>Add a saved location</h2><form id="locationForm" class="form-stack" style="margin-top:14px"><label>Name<input name="label" required placeholder="e.g. Supplier, job site, home"></label><label>Address<input name="address" required placeholder="Street address, city, province"></label><button class="primary wide" type="submit">Save location</button></form></section>
+    <section class="section-heading"><div><p class="eyebrow">YOUR PLACES</p><h2>Tap for directions</h2></div></section><div id="savedLocationList" class="card-list"></div>
+  </template>  <template id="job-choice-template">
     <section class="page-title"><button class="back" data-view="dashboard" aria-label="Go back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5 7.5 12l7 7M8 12h9"/></svg></button><div><p class="eyebrow">NEW JOB</p><h1>Who is this job for?</h1><p>Choose the workflow that matches the job.</p></div></section>
     <div class="choice-grid">
       <button class="choice-card goline" data-action="choose-source" data-source="goline"><img class="choice-logo" src="goline-logo.jpg" alt="GoLime logo"><strong>GoLime</strong><small>Subcontracted work with work orders, GoLime rates, completion proof and payment tracking.</small><span class="arrow"> </span></button>
@@ -173,7 +177,7 @@
     <section class="form-card"><p class="eyebrow">SHARED WORKSPACE</p><h2>Device sync</h2><p id="sharedSyncStatus">Checking shared-device sync...</p><button class="primary wide" data-action="sync-now">Sync all devices now</button></section>
     <section class="form-card"><p class="eyebrow">ACCOUNT</p><h2>Signed-in user</h2><p id="settingsAccount" class="travel-status">Checking account...</p><button class="secondary wide" data-action="sign-out">Sign out of this device</button></section>
   </template>  <script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistration('./').then(registration=>registration?.update())}</script>
-  <script defer src="field-manager.js?v=96"></script>
+  <script defer src="field-manager.js?v=97"></script>
 </body>
 </html>
 
