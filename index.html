@@ -90,6 +90,7 @@
       </div></section>
       <section class="form-card goline-only"><div class="card-title"><div><h2>GoLime rate</h2><p>Base rate updates when you select the work type.</p></div><strong id="baseRate">$0.00</strong></div></section>
       <section class="form-card goline-only" id="customChargeCard" hidden><h2>Custom GoLime charge</h2><p>Enter the agreed amount for a job that is not on the GoLime rate sheet.</p><label>Base job amount<input id="customChargeAmount" name="customAmount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00"></label></section>
+      <section class="form-card goline-only" id="serviceCallCard" hidden><h2>Service call hours</h2><p>GoLime service calls are billed at $100 per hour.</p><label>Hours worked<input id="serviceHours" name="serviceHours" type="number" min="0.25" step="0.25" inputmode="decimal" value="1"></label></section>
       <section class="form-card goline-only"><div class="card-title"><div><h2>Extras</h2><p>Add approved custom charges to this job.</p></div><button type="button" class="secondary small" id="addExtra">  Add extra</button></div><div id="extrasList" class="extras-list"></div><div class="total-line"><span>Total extras</span><strong id="extrasTotal">$0.00</strong></div></section>
       <section class="form-card goline-only"><div class="card-title"><div><h2>Required photos & tests</h2><p id="photoHelp">Select an installation type to load the GoLime checklist.</p></div></div><div id="photoChecklist"></div></section>
       <section class="form-card"><button type="submit" class="primary wide">Save job</button></section>
@@ -171,7 +172,7 @@
     <section class="form-card"><p class="eyebrow">SHARED WORKSPACE</p><h2>Device sync</h2><p id="sharedSyncStatus">Checking shared-device sync...</p><button class="primary wide" data-action="sync-now">Sync all devices now</button></section>
     <section class="form-card"><p class="eyebrow">ACCOUNT</p><h2>Signed-in user</h2><p id="settingsAccount" class="travel-status">Checking account...</p><button class="secondary wide" data-action="sign-out">Sign out of this device</button></section>
   </template>  <script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistration('./').then(registration=>registration?.update())}</script>
-  <script defer src="field-manager.js?v=87"></script>
+  <script defer src="field-manager.js?v=88"></script>
 </body>
 </html>
 
