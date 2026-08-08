@@ -71,10 +71,10 @@ export function parseDispatch(text) {
     const times = [...segment.matchAll(/(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep(?:t)?|Oct|Nov|Dec)\s+\d{1,2},\s+\d{4}\s+\d{1,2}:\d{2}\s*(?:AM|PM)/gi)].map(match => match[0]);
     const phoneMatch = segment.match(/\+?1?[\s().-]*\d{3}[\s().-]*\d{3}[\s().-]*\d{4}/);
     const phone = phoneMatch ? `+${phoneMatch[0].replace(/\D/g, '').replace(/^1?/, '1')}` : '';
-    const postal = segment.match(/\b([A-Z]\d[A-Z]\s?\d[A-Z]\d)\b/i);
+    const postal = segment.match(/\b([A-Z]\d[A-Z][ -]?\d[A-Z]\d)\b/i);
     const phoneAt = phoneMatch ? phoneMatch.index : -1;
-    const postalAt = postal ? segment.indexOf(postal[0]) : -1;
-    const address = phoneAt >= 0 && postalAt > phoneAt ? segment.slice(phoneAt + phoneMatch[0].length, postalAt).replace(/\s+/g, ' ').trim() : '';
+    const postalAt = postal?.index ?? -1;
+    const address = phoneAt >= 0 && postalAt > phoneAt ? segment.slice(phoneAt + phoneMatch[0].length, postalAt).replace(/\s+/g, ' ').replace(/^[-,:]+|[-,:]+$/g, '').trim() : '';
     // The last column (notes) can be cut off or run directly after the city.
     // Keep only the initial capitalized city name and deliberately ignore the rest.
     const city = postal ? (segment.slice(postalAt + postal[0].length).trim().match(/^([A-Z][a-z.]+(?:[ -][A-Z][a-z.]+){0,2})/)?.[1] || '') : '';
