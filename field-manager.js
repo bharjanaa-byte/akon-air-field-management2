@@ -73,6 +73,7 @@ async function ensureCloudClient(){if(supabase)return supabase;const module=awai
 const RATES={
   'Conventional Water Heater':275,'Power Vent Tank':275,'Heat Pump Water Heater':375,'Tankless (Replacement)':500,'Tankless from Power Vent / Conventional Vent':825,'Combi Boiler':1000,'Furnace / Air Handler':800,'Air Conditioner':800,'Heat Pump':900,'Heat Pump & Furnace':1700,'Filtration':200,'Water Softener':200,'Reverse Osmosis (Install Only)':175,'HEPA Filter':200,'Humidifier':150,'Ductless (1 condenser + 1 head)':1100,'Service Call':100,'Custom / Other':0
 };
+const JOB_STATUSES=['Assigned','Accepted','Driving','On Site','Installing','Waiting for Parts','Completed','Submitted to GoLime','Paid'];
 const CHECKLISTS={
   water:['Before Installation Picture','After Installation Picture','Soap Test','Manometer Test','Pressure Test Tag'],
   electric:['Before Installation Picture','After Installation Picture','Multimeter Test','Electrical Panel Picture'],
