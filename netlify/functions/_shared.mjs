@@ -49,7 +49,12 @@ export const json = (body, status = 200) => new Response(JSON.stringify(body), {
 });
 
 export function parseDispatch(text) {
-  const chunks = String(text || '').split(/(?=WO-\s*\d+)/i).filter(part => /WO-\s*\d+/i.test(part));
+  // GoLime's PDF exports columns in reading order.  In that output "WO-" and
+  // the numeric work-order code are often separated by the whole job row, so
+  // do not assume they are adjacent.
+  const source = String(text || '').replace(/\s+/g, ' ').trim();
+  const chunks = source.split(/(?=WO-\s*(?:Go(?:\s*Lime)?|Simply\s+Smart|[A-Z][A-Za-z ]{1,30})\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep(?:t)?|Oct|Nov|Dec)\s+\d{1,2},\s+\d{4})/i)
+    .filter(part => /WO-\s*/i.test(part));
   const month = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, sept: 8, oct: 9, nov: 10, dec: 11 };
   const isoDate = (value) => {
     const match = value.match(/([A-Za-z]+)\s+(\d{1,2}),\s+(\d{4})/);
@@ -67,17 +72,20 @@ export function parseDispatch(text) {
     return `${day}T${String(hour).padStart(2, '0')}:${clock[2]}:00`;
   };
   return chunks.map((segment) => {
-    const workOrder = segment.match(/WO-\s*\d+/i)?.[0].replace(/\s+/g, '').toUpperCase();
+    const postal = segment.match(/\b([A-Z]\d[A-Z][ -]?\d[A-Z]\d)\b/i);
+    const afterPostal = postal ? segment.slice((postal.index || 0) + postal[0].length) : '';
+    const workOrderCode = afterPostal.match(/\b(\d{6})\b/)?.[1] || segment.match(/WO-\s*(\d{5,})/i)?.[1] || '';
+    const workOrder = workOrderCode ? `WO-${workOrderCode}` : '';
     const times = [...segment.matchAll(/(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep(?:t)?|Oct|Nov|Dec)\s+\d{1,2},\s+\d{4}\s+\d{1,2}:\d{2}\s*(?:AM|PM)/gi)].map(match => match[0]);
     const phoneMatch = segment.match(/\+?1?[\s().-]*\d{3}[\s().-]*\d{3}[\s().-]*\d{4}/);
     const phone = phoneMatch ? `+${phoneMatch[0].replace(/\D/g, '').replace(/^1?/, '1')}` : '';
-    const postal = segment.match(/\b([A-Z]\d[A-Z][ -]?\d[A-Z]\d)\b/i);
     const phoneAt = phoneMatch ? phoneMatch.index : -1;
     const postalAt = postal?.index ?? -1;
     const address = phoneAt >= 0 && postalAt > phoneAt ? segment.slice(phoneAt + phoneMatch[0].length, postalAt).replace(/\s+/g, ' ').replace(/^[-,:]+|[-,:]+$/g, '').trim() : '';
-    // The last column (notes) can be cut off or run directly after the city.
-    // Keep only the initial capitalized city name and deliberately ignore the rest.
-    const city = postal ? (segment.slice(postalAt + postal[0].length).trim().match(/^([A-Z][a-z.]+(?:[ -][A-Z][a-z.]+){0,2})/)?.[1] || '') : '';
+    // Stop at the numeric work-order column rather than at the notes column.
+    // This keeps city names while deliberately ignoring work-order notes.
+    const citySource = afterPostal.split(/\b\d{6}\b/)[0].trim();
+    const city = citySource.match(/^([A-Z][a-z.]+(?:[ -][A-Z][a-z.]+){0,2})/)?.[1] || '';
     const assetStart = times[1] ? segment.indexOf(times[1]) + times[1].length : (times[0] ? segment.indexOf(times[0]) + times[0].length : 0);
     const equipment = phoneAt > assetStart ? segment.slice(assetStart, phoneAt).trim() : '';
     const workType = /Air Conditioner/i.test(equipment) ? 'Air Conditioner' : /Tankless/i.test(equipment) ? 'Tankless (Replacement)' : /Furnace|Air Handler/i.test(equipment) ? 'Furnace / Air Handler' : /Water Heater|WHGS|Bradford White|PV50/i.test(equipment) ? 'Conventional Water Heater' : 'Custom / Other';

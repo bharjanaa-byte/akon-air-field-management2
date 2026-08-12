@@ -47,7 +47,9 @@ async function importMessage(integration, token, messageId) {
 
 export async function importIntegration(integration) {
   const token = await gmailToken(integration.refresh_token), query = env('DISPATCH_GMAIL_QUERY');
-  const listResponse = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=10&q=${encodeURIComponent(query)}`, { headers: { authorization: `Bearer ${token}` } });
+  // Revisit a useful history window every time. This also repairs older jobs
+  // that were created before the address parser was corrected.
+  const listResponse = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=100&q=${encodeURIComponent(query)}`, { headers: { authorization: `Bearer ${token}` } });
   const list = await listResponse.json(); if (!listResponse.ok) throw new Error(list.error?.message || 'Could not search Gmail.');
   const messages = list.messages || []; if (!messages.length) return { imported: 0, updated: 0, skipped: true, message: 'No matching Master Dispatch email was found.' };
   let imported = 0, updated = 0;
@@ -55,7 +57,7 @@ export async function importIntegration(integration) {
   const { error: updateError } = await admin().from('gmail_integrations').update({ last_message_id: messages[0].id, last_import_at: new Date().toISOString() }).eq('company_id', integration.company_id);
   if (updateError) throw updateError;
   const parts = []; if (imported) parts.push(`Imported ${imported} new job${imported === 1 ? '' : 's'}.`); if (updated) parts.push(`Filled in missing details on ${updated} existing job${updated === 1 ? '' : 's'}.`);
-  return { imported, updated, skipped: !imported && !updated, message: parts.join(' ') || 'The 10 most recent Master Dispatch emails are already up to date.' };
+  return { imported, updated, skipped: !imported && !updated, message: parts.join(' ') || 'The recent Master Dispatch emails are already up to date.' };
 }
 export async function importCompanyDispatch(companyId) {
   const { data: integration, error } = await admin().from('gmail_integrations').select('*').eq('company_id', companyId).maybeSingle();
