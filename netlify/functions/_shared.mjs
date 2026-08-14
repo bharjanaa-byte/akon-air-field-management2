@@ -87,8 +87,7 @@ export function parseDispatch(text) {
     // PDF column order is not reliable: some emailed dispatches put Street
     // before Phone, while others put it after. Read the street immediately
     // before the postal code first, then fall back to the older phone range.
-    const beforePostal = postalAt >= 0 ? segment.slice(0, postalAt).replace(/\s+/g, ' ') : '';
-    const streetMatches = [...beforePostal.matchAll(/\b(\d{1,5}\s+(?:[A-Za-z0-9.'-]+\s+){0,5}(?:Street|St|Road|Rd|Avenue|Ave|Drive|Dr|Boulevard|Blvd|Trail|Lane|Ln|Court|Ct|Way|Place|Pl|Crescent|Cres|Highway|Hwy))\b/gi)];
+    const streetMatches = [...segment.replace(/\s+/g, ' ').matchAll(/\b(\d{1,5}\s+(?:[A-Za-z0-9.'-]+\s+){0,5}(?:Street|St|Road|Rd|Avenue|Ave|Drive|Dr|Boulevard|Blvd|Trail|Lane|Ln|Court|Ct|Way|Place|Pl|Crescent|Cres|Highway|Hwy))\b/gi)];
     const streetByPostal = streetMatches.length ? streetMatches[streetMatches.length - 1][1].trim() : '';
     const address = streetByPostal || (phoneAt >= 0 && postalAt > phoneAt ? segment.slice(phoneAt + phoneMatch[0].length, postalAt).replace(/\s+/g, ' ').replace(/^[-,:]+|[-,:]+$/g, '').trim() : '');
     // Stop at the numeric work-order column rather than at the notes column.
