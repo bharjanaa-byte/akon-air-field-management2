@@ -56,10 +56,11 @@
   <template id="dashboard-template">
     <section class="hero"><img class="hero-logo" src="akon-air-mark.png" alt="Akon Air"><span class="hero-tagline">Comfort Feels Like Home</span><div class="hero-content"><p class="eyebrow">FIELD OPERATIONS</p><h1>Good day, Amrit & Karan.</h1><p>Keep jobs, proof of completion, and payments in one place.</p></div><div class="hero-actions"><button class="primary wide" data-action="new-job">Create new job</button><button class="hero-secondary" data-view="settings">Settings & workspace</button></div></section>
     <section class="stat-grid" id="statGrid"></section><div id="homeTravelSection"></div>
+    <section class="section-heading"><div><p class="eyebrow">TODAY'S ROUTE</p><h2>Warehouse to scheduled jobs</h2></div><button class="secondary small" data-view="travel">Travel</button></section>
+    <section id="todayRouteMap" class="today-route-card"><p class="travel-status">Preparing today’s route…</p></section>
     <section class="section-heading"><div><p class="eyebrow">GOLIME PAYMENTS</p><h2>What GoLime owes</h2></div><button class="secondary small" data-view="money">View details</button></section>
     <section class="stat-grid" id="homeOwedBreakdown"></section><section class="home-hst" id="homeOwedTax"></section>
-    <section class="section-heading"><div><p class="eyebrow">FIELD TOOLS</p><h2>Run your day</h2></div></section>
-    <div id="recentJobs" class="card-list"></div>    <section class="section-heading" style="margin-top:28px"><div><p class="eyebrow">SAVED LOCATIONS</p><h2>Quick directions</h2></div><button class="secondary small" data-view="locations">Manage</button></section><div id="homeLocations" class="card-list"></div>
+    <section class="section-heading" style="margin-top:28px"><div><p class="eyebrow">SAVED LOCATIONS</p><h2>Quick directions</h2></div><button class="secondary small" data-view="locations">Manage</button></section><div id="homeLocations" class="card-list"></div>
     
   </template>
 
@@ -177,7 +178,7 @@
     <section class="form-card"><p class="eyebrow">SHARED WORKSPACE</p><h2>Device sync</h2><p id="sharedSyncStatus">Checking shared-device sync...</p><button class="primary wide" data-action="sync-now">Sync all devices now</button></section>
     <section class="form-card"><p class="eyebrow">ACCOUNT</p><h2>Signed-in user</h2><p id="settingsAccount" class="travel-status">Checking account...</p><button class="secondary wide" data-action="sign-out">Sign out of this device</button></section>
   </template>  <script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistration('./').then(registration=>registration?.update())}</script>
-  <script defer src="field-manager.js?v=121"></script>
+  <script defer src="field-manager.js?v=122"></script>
 </body>
 </html>
 
