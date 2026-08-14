@@ -12,7 +12,7 @@ const gmailToken = async (refreshToken) => {
 const parts = (node) => [node, ...(node.parts || []).flatMap(parts)];
 const decode = (value) => Buffer.from(value.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
 
-async function importMessage(integration, token, messageId, processedWorkOrders = new Set()) {
+async function importMessage(integration, token, messageId) {
   const emailResponse = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}?format=full`, { headers: { authorization: `Bearer ${token}` } });
   const email = await emailResponse.json();
   if (!emailResponse.ok) throw new Error(email.error?.message || 'Could not open the dispatch email.');
@@ -21,48 +21,32 @@ async function importMessage(integration, token, messageId, processedWorkOrders 
   const rawResponse = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}/attachments/${attachment.body.attachmentId}`, { headers: { authorization: `Bearer ${token}` } });
   const raw = await rawResponse.json();
   if (!rawResponse.ok) throw new Error(raw.error?.message || 'Could not download the dispatch PDF.');
-  const extracted = parseDispatch((await pdf(decode(raw.data))).text).filter(job => !processedWorkOrders.has(job.workOrder));
-  extracted.forEach(job => processedWorkOrders.add(job.workOrder));
+  const extracted = parseDispatch((await pdf(decode(raw.data))).text);
   if (!extracted.length) return { imported: 0, updated: 0 };
   const client = admin(), workOrders = extracted.map(job => job.workOrder);
-  const { data: existing, error: readError } = await client.from('jobs').select('id,work_order,job_date,address,phone,equipment,appointment_start,appointment_end,work_type').eq('company_id', integration.company_id).in('work_order', workOrders);
+  const { data: existing, error: readError } = await client.from('jobs').select('id,work_order').eq('company_id', integration.company_id).in('work_order', workOrders);
   if (readError) throw readError;
   const existingByWorkOrder = new Map((existing || []).map(job => [job.work_order, job]));
   const fresh = extracted.filter(job => !existingByWorkOrder.has(job.workOrder)).map(job => ({ company_id: integration.company_id, created_by: integration.connected_by, source: job.source, work_order: job.workOrder, job_date: job.date, status: job.status, work_type: job.workType, customer_name: job.customer, phone: job.phone || null, address: job.address || null, equipment: job.equipment || null, notes: job.notes, extras: [], appointment_start: job.appointmentStart, appointment_end: job.appointmentEnd }));
   if (fresh.length) { const { error } = await client.from('jobs').insert(fresh); if (error) throw error; }
-  // This runs only when a signed-in user presses the Gmail check button.
-  // It repairs schedule/contact details without changing field-work records.
-  let updated = 0;
-  for (const importedJob of extracted) {
-    const stored = existingByWorkOrder.get(importedJob.workOrder); if (!stored) continue;
-    const patch = {};
-    if (importedJob.date && stored.job_date !== importedJob.date) patch.job_date = importedJob.date;
-    if (importedJob.appointmentStart && stored.appointment_start !== importedJob.appointmentStart) patch.appointment_start = importedJob.appointmentStart;
-    if (importedJob.appointmentEnd && stored.appointment_end !== importedJob.appointmentEnd) patch.appointment_end = importedJob.appointmentEnd;
-    if (!stored.address && importedJob.address) patch.address = importedJob.address;
-    if (!stored.phone && importedJob.phone) patch.phone = importedJob.phone;
-    if (!stored.equipment && importedJob.equipment) patch.equipment = importedJob.equipment;
-    if ((!stored.work_type || stored.work_type === 'Custom / Other') && importedJob.workType) patch.work_type = importedJob.workType;
-    if (!Object.keys(patch).length) continue;
-    const { error } = await client.from('jobs').update(patch).eq('id', stored.id); if (error) throw error; updated++;
-  }
-  return { imported: fresh.length, updated, found: extracted.length };
+  // Gmail is intentionally add-only. It must never move, edit, or overwrite
+  // a job the team has already saved in the field app.
+  return { imported: fresh.length, updated: 0, found: extracted.length, existing: extracted.length - fresh.length };
 }
 
 export async function importIntegration(integration) {
   const token = await gmailToken(integration.refresh_token), query = env('DISPATCH_GMAIL_QUERY');
-  // The user starts this scan from Settings. Existing work orders are skipped.
-  const listResponse = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=100&q=${encodeURIComponent(query)}`, { headers: { authorization: `Bearer ${token}` } });
+  // Only the newest matching dispatch is read. Older daily schedules must not
+  // be allowed to add or alter jobs for an earlier date.
+  const listResponse = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=1&q=${encodeURIComponent(query)}`, { headers: { authorization: `Bearer ${token}` } });
   const list = await listResponse.json(); if (!listResponse.ok) throw new Error(list.error?.message || 'Could not search Gmail.');
   const messages = list.messages || []; if (!messages.length) return { imported: 0, updated: 0, skipped: true, message: 'No matching Master Dispatch email was found.' };
-  let imported = 0, updated = 0, found = 0;
-  const processedWorkOrders = new Set();
-  // Gmail returns newest messages first. Once a work order is found, older
-  // dispatch copies are deliberately ignored so they cannot roll it back.
-  for (const message of messages) { try { const result = await importMessage(integration, token, message.id, processedWorkOrders); imported += result.imported; updated += result.updated; found += result.found || 0; } catch (error) { console.error('Dispatch message import failed:', message.id, error); } }
+  let imported = 0, updated = 0, found = 0, existing = 0;
+  const message = messages[0];
+  try { const result = await importMessage(integration, token, message.id); imported = result.imported; updated = result.updated; found = result.found || 0; existing = result.existing || 0; } catch (error) { console.error('Dispatch message import failed:', message.id, error); throw error; }
   const { error: updateError } = await admin().from('gmail_integrations').update({ last_message_id: messages[0].id, last_import_at: new Date().toISOString() }).eq('company_id', integration.company_id);
   if (updateError) throw updateError;
-  const parts = []; if (found) parts.push(`Found ${found} scheduled job${found === 1 ? '' : 's'}.`); if (imported) parts.push(`Imported ${imported} new job${imported === 1 ? '' : 's'}.`); if (updated) parts.push(`Refreshed schedule or missing details on ${updated} existing job${updated === 1 ? '' : 's'}.`);
+  const parts = []; if (found) parts.push(`Newest dispatch contains ${found} scheduled job${found === 1 ? '' : 's'}.`); if (imported) parts.push(`Imported ${imported} new job${imported === 1 ? '' : 's'}.`); if (existing) parts.push(`${existing} existing work order${existing === 1 ? ' was' : 's were'} left unchanged.`);
   return { imported, updated, skipped: !imported && !updated, message: parts.join(' ') || 'The recent Master Dispatch emails are already up to date.' };
 }
 export async function importCompanyDispatch(companyId) {
