@@ -32,11 +32,11 @@ async function importMessage(integration, token, messageId) {
   const extracted = allExtracted.filter(job => job.date > torontoToday());
   // Old and same-day dispatches cannot create new jobs, but they can safely
   // fill missing address, phone, time, equipment, and meeting details.
-  const client = admin(), workOrders = allExtracted.map(job => job.workOrder);
-  const { data: existing, error: readError } = await client.from('jobs').select('id,work_order,address,phone,equipment,work_type,customer_name,appointment_start,appointment_end').eq('company_id', integration.company_id).in('work_order', workOrders);
+  const client = admin();
+  const { data: existing, error: readError } = await client.from('jobs').select('id,work_order,address,phone,equipment,work_type,customer_name,appointment_start,appointment_end').eq('company_id', integration.company_id);
   if (readError) throw readError;
   const workOrderKey = value => String(value || '').match(/\d{5,}/)?.[0] || String(value || '').trim();
-  const missing = value => !String(value || '').trim() || /^(?:-|—|n\/?a|address not available)$/i.test(String(value).trim());
+  const missing = value => !String(value || '').trim() || /^(?:-|n\/?a|address not available)$/i.test(String(value).trim());
   const existingByWorkOrder = new Map((existing || []).map(job => [workOrderKey(job.work_order), job]));
   const savedFor = job => existingByWorkOrder.get(workOrderKey(job.workOrder));
   const fresh = extracted.filter(job => !savedFor(job)).map(job => ({ company_id: integration.company_id, created_by: integration.connected_by, source: job.source, work_order: job.workOrder, job_date: job.date, status: job.status, work_type: job.workType, customer_name: job.customer, phone: job.phone || null, address: job.address || null, equipment: job.equipment || null, notes: job.notes, extras: [], appointment_start: job.appointmentStart, appointment_end: job.appointmentEnd }));
