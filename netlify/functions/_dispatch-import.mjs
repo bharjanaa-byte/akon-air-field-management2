@@ -33,7 +33,7 @@ async function importMessage(integration, token, messageId) {
   // Old and same-day dispatches cannot create new jobs, but they can safely
   // fill missing address, phone, time, equipment, and meeting details.
   const client = admin();
-  const { data: existing, error: readError } = await client.from('jobs').select('id,work_order,address,phone,equipment,work_type,customer_name,appointment_start,appointment_end').eq('company_id', integration.company_id);
+  const { data: existing, error: readError } = await client.from('jobs').select('id,work_order,address,phone,equipment,work_type,customer_name,appointment_start,appointment_end,notes').eq('company_id', integration.company_id);
   if (readError) throw readError;
   const workOrderKey = value => String(value || '').match(/\d{5,}/)?.[0] || String(value || '').trim();
   const missing = value => !String(value || '').trim() || /^(?:-|n\/?a|address not available)$/i.test(String(value).trim());
@@ -41,12 +41,13 @@ async function importMessage(integration, token, messageId) {
   const savedFor = job => existingByWorkOrder.get(workOrderKey(job.workOrder));
   const fresh = extracted.filter(job => !savedFor(job)).map(job => ({ company_id: integration.company_id, created_by: integration.connected_by, source: job.source, work_order: job.workOrder, job_date: job.date, status: job.status, work_type: job.workType, customer_name: job.customer, phone: job.phone || null, address: job.address || null, equipment: job.equipment || null, notes: job.notes, extras: [], appointment_start: job.appointmentStart, appointment_end: job.appointmentEnd }));
   if (fresh.length) { const { error } = await client.from('jobs').insert(fresh); if (error) throw error; }
-  const repairs = allExtracted.map(job => ({ job, existing: savedFor(job) })).filter(({ job, existing }) => existing && (missing(existing.address) && job.address || missing(existing.phone) && job.phone || missing(existing.equipment) && job.equipment || !existing.appointment_start && job.appointmentStart || !existing.appointment_end && job.appointmentEnd || job.workType === 'Meeting' && existing.work_type !== 'Meeting'));
+  const repairs = allExtracted.map(job => ({ job, existing: savedFor(job) })).filter(({ job, existing }) => { const imported = /^Imported automatically from GoLime Master Dispatch\./i.test(existing?.notes || ''); return existing && (imported && job.address || missing(existing.address) && job.address || missing(existing.phone) && job.phone || missing(existing.equipment) && job.equipment || !existing.appointment_start && job.appointmentStart || !existing.appointment_end && job.appointmentEnd || job.workType === 'Meeting' && existing.work_type !== 'Meeting') });
   for (const { job, existing: saved } of repairs) {
     const update = {};
-    if (missing(saved.address) && job.address) update.address = job.address;
-    if (missing(saved.phone) && job.phone) update.phone = job.phone;
-    if (missing(saved.equipment) && job.equipment) update.equipment = job.equipment;
+    const imported = /^Imported automatically from GoLime Master Dispatch\./i.test(saved.notes || '');
+    if ((imported || missing(saved.address)) && job.address) update.address = job.address;
+    if ((imported || missing(saved.phone)) && job.phone) update.phone = job.phone;
+    if ((imported || missing(saved.equipment)) && job.equipment) update.equipment = job.equipment;
     if (!saved.appointment_start && job.appointmentStart) update.appointment_start = job.appointmentStart;
     if (!saved.appointment_end && job.appointmentEnd) update.appointment_end = job.appointmentEnd;
     if (job.workType === 'Meeting' && saved.work_type !== 'Meeting') { update.work_type = 'Meeting'; update.customer_name = 'GoLime meeting'; }
