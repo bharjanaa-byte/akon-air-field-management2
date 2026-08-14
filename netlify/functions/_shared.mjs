@@ -58,6 +58,7 @@ export function parseDispatch(text) {
   // marker supports both layouts and keeps every scheduled job separate.
   const chunks = source.split(/(?=(?:(?:Installation\s+Appointment|Meeting)\s*\(\s*\d+\s*\)\s+)?WO-\s*)/i)
     .filter(part => /WO-\s*/i.test(part));
+  const addressCatalog = [...source.matchAll(/\b(\d{1,5}\s+(?:[A-Za-z0-9.'-]+\s+){0,5}(?:Street|St|Road|Rd|Avenue|Ave|Drive|Dr|Boulevard|Blvd|Trail|Lane|Ln|Court|Ct|Way|Place|Pl|Crescent|Cres|Highway|Hwy))\s+([A-Z]\d[A-Z][ -]?\d[A-Z]\d)\s+([A-Z][a-z.]+(?:[ -][A-Z][a-z.]+){0,2})/gi)].map(match => ({ street: match[1].trim(), postal: match[2].replace(/\s/g, '').toUpperCase(), city: match[3] }));
   const month = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, sept: 8, oct: 9, nov: 10, dec: 11 };
   const isoDate = (value) => {
     const match = value.match(/([A-Za-z]+)\s+(\d{1,2}),\s+(\d{4})/);
@@ -89,11 +90,12 @@ export function parseDispatch(text) {
     // before the postal code first, then fall back to the older phone range.
     const streetMatches = [...segment.replace(/\s+/g, ' ').matchAll(/\b(\d{1,5}\s+(?:[A-Za-z0-9.'-]+\s+){0,5}(?:Street|St|Road|Rd|Avenue|Ave|Drive|Dr|Boulevard|Blvd|Trail|Lane|Ln|Court|Ct|Way|Place|Pl|Crescent|Cres|Highway|Hwy))\b/gi)];
     const streetByPostal = streetMatches.length ? streetMatches[streetMatches.length - 1][1].trim() : '';
-    const address = streetByPostal || (phoneAt >= 0 && postalAt > phoneAt ? segment.slice(phoneAt + phoneMatch[0].length, postalAt).replace(/\s+/g, ' ').replace(/^[-,:]+|[-,:]+$/g, '').trim() : '');
+    const catalogAddress = addressCatalog.find(item => item.postal === postal?.[1]?.replace(/\s/g, '').toUpperCase());
+    const address = streetByPostal || catalogAddress?.street || (phoneAt >= 0 && postalAt > phoneAt ? segment.slice(phoneAt + phoneMatch[0].length, postalAt).replace(/\s+/g, ' ').replace(/^[-,:]+|[-,:]+$/g, '').trim() : '');
     // Stop at the numeric work-order column rather than at the notes column.
     // This keeps city names while deliberately ignoring work-order notes.
     const citySource = afterPostal.split(/\b\d{6}\b/)[0].trim();
-    const city = citySource.match(/^([A-Z][a-z.]+(?:[ -][A-Z][a-z.]+){0,2})/)?.[1] || '';
+    const city = citySource.match(/^([A-Z][a-z.]+(?:[ -][A-Z][a-z.]+){0,2})/)?.[1] || catalogAddress?.city || '';
     const assetStart = times[1] ? segment.indexOf(times[1]) + times[1].length : (times[0] ? segment.indexOf(times[0]) + times[0].length : 0);
     const equipment = phoneAt > assetStart ? segment.slice(assetStart, phoneAt).trim() : '';
     // Only the marked appointment row is a meeting. A broad "Meeting" search
