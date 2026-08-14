@@ -26,7 +26,9 @@ async function importMessage(integration, token, messageId) {
   const rawResponse = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}/attachments/${attachment.body.attachmentId}`, { headers: { authorization: `Bearer ${token}` } });
   const raw = await rawResponse.json();
   if (!rawResponse.ok) throw new Error(raw.error?.message || 'Could not download the dispatch PDF.');
-  const allExtracted = parseDispatch((await pdf(decode(raw.data))).text);
+  const dispatchText = (await pdf(decode(raw.data))).text;
+  if (!/Master\s+Dispatch\s+Schedule/i.test(dispatchText)) return { imported: 0, updated: 0, found: 0, ignored: 0, notDispatch: true };
+  const allExtracted = parseDispatch(dispatchText);
   const extracted = allExtracted.filter(job => job.date > torontoToday());
   if (!extracted.length) return { imported: 0, updated: 0, found: 0, ignored: allExtracted.length };
   const client = admin(), workOrders = extracted.map(job => job.workOrder);
@@ -41,16 +43,19 @@ async function importMessage(integration, token, messageId) {
 }
 
 export async function importIntegration(integration) {
-  const token = await gmailToken(integration.refresh_token), query = env('DISPATCH_GMAIL_QUERY');
-  // Check a short recent window, but import only the first PDF that contains
-  // future-dated work. Same-day and old schedules are never added.
-  const listResponse = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=10&q='+encodeURIComponent(query), { headers: { authorization: 'Bearer '+token } });
+  const token = await gmailToken(integration.refresh_token);
+  // Search recent PDFs broadly, then confirm the PDF itself is a GoLime Master
+  // Dispatch. This is safer than depending on an email subject that can vary.
+  const query = 'has:attachment filename:pdf newer_than:30d';
+  const listResponse = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=25&q='+encodeURIComponent(query), { headers: { authorization: 'Bearer '+token } });
   const list = await listResponse.json(); if (!listResponse.ok) throw new Error(list.error?.message || 'Could not search Gmail.');
   const messages = list.messages || []; if (!messages.length) return { imported: 0, updated: 0, skipped: true, message: 'No matching Master Dispatch email was found.' };
-  let imported = 0, updated = 0, found = 0, existing = 0, ignored = 0, selectedMessage = null;
+  let imported = 0, updated = 0, found = 0, existing = 0, ignored = 0, checked = 0, selectedMessage = null;
   for (const message of messages) {
     try {
       const result = await importMessage(integration, token, message.id);
+      if (result.notDispatch) continue;
+      checked++;
       ignored += result.ignored || 0;
       if (!result.found) continue;
       imported = result.imported; updated = result.updated; found = result.found; existing = result.existing || 0; selectedMessage = message;
@@ -59,8 +64,8 @@ export async function importIntegration(integration) {
   }
   const { error: updateError } = await admin().from('gmail_integrations').update({ last_message_id: selectedMessage?.id || messages[0].id, last_import_at: new Date().toISOString() }).eq('company_id', integration.company_id);
   if (updateError) throw updateError;
-  const parts = []; if (found) parts.push('Next dispatch contains '+found+' future job'+(found === 1 ? '' : 's')+'.'); if (imported) parts.push('Imported '+imported+' new job'+(imported === 1 ? '' : 's')+'.'); if (existing) parts.push(existing+' existing work order'+(existing === 1 ? ' was' : 's were')+' left unchanged.'); if (ignored) parts.push('Skipped '+ignored+' job'+(ignored === 1 ? '' : 's')+' dated today or earlier.');
-  return { imported, updated, skipped: !imported && !updated, message: parts.join(' ') || 'No future jobs were found in the recent Master Dispatch emails.' };
+  const parts = []; if (checked) parts.push('Checked '+checked+' Master Dispatch PDF'+(checked === 1 ? '' : 's')+'.'); if (found) parts.push('Next dispatch contains '+found+' future job'+(found === 1 ? '' : 's')+'.'); if (imported) parts.push('Imported '+imported+' new job'+(imported === 1 ? '' : 's')+'.'); if (existing) parts.push(existing+' existing work order'+(existing === 1 ? ' was' : 's were')+' left unchanged.'); if (ignored) parts.push('Skipped '+ignored+' job'+(ignored === 1 ? '' : 's')+' dated today or earlier.');
+  return { imported, updated, skipped: !imported && !updated, message: parts.join(' ') || 'No future jobs were found in the recent Master Dispatch PDFs.' };
 }
 export async function importCompanyDispatch(companyId) {
   const { data: integration, error } = await admin().from('gmail_integrations').select('*').eq('company_id', companyId).maybeSingle();
