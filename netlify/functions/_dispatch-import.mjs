@@ -30,14 +30,15 @@ async function importMessage(integration, token, messageId) {
   if (!/Master\s+Dispatch\s+Schedule/i.test(dispatchText)) return { imported: 0, updated: 0, found: 0, ignored: 0, notDispatch: true };
   const allExtracted = parseDispatch(dispatchText);
   const extracted = allExtracted.filter(job => job.date > torontoToday());
-  if (!extracted.length) return { imported: 0, updated: 0, found: 0, ignored: allExtracted.length };
-  const client = admin(), workOrders = extracted.map(job => job.workOrder);
+  // Old and same-day dispatches cannot create new jobs, but they can safely
+  // fill missing address, phone, time, equipment, and meeting details.
+  const client = admin(), workOrders = allExtracted.map(job => job.workOrder);
   const { data: existing, error: readError } = await client.from('jobs').select('id,work_order,address,phone,equipment,work_type,customer_name,appointment_start,appointment_end').eq('company_id', integration.company_id).in('work_order', workOrders);
   if (readError) throw readError;
   const existingByWorkOrder = new Map((existing || []).map(job => [job.work_order, job]));
   const fresh = extracted.filter(job => !existingByWorkOrder.has(job.workOrder)).map(job => ({ company_id: integration.company_id, created_by: integration.connected_by, source: job.source, work_order: job.workOrder, job_date: job.date, status: job.status, work_type: job.workType, customer_name: job.customer, phone: job.phone || null, address: job.address || null, equipment: job.equipment || null, notes: job.notes, extras: [], appointment_start: job.appointmentStart, appointment_end: job.appointmentEnd }));
   if (fresh.length) { const { error } = await client.from('jobs').insert(fresh); if (error) throw error; }
-  const repairs = extracted.map(job => ({ job, existing: existingByWorkOrder.get(job.workOrder) })).filter(({ job, existing }) => existing && (!existing.address && job.address || !existing.phone && job.phone || !existing.equipment && job.equipment || !existing.appointment_start && job.appointmentStart || !existing.appointment_end && job.appointmentEnd || job.workType === 'Meeting' && existing.work_type !== 'Meeting'));
+  const repairs = allExtracted.map(job => ({ job, existing: existingByWorkOrder.get(job.workOrder) })).filter(({ job, existing }) => existing && (!existing.address && job.address || !existing.phone && job.phone || !existing.equipment && job.equipment || !existing.appointment_start && job.appointmentStart || !existing.appointment_end && job.appointmentEnd || job.workType === 'Meeting' && existing.work_type !== 'Meeting'));
   for (const { job, existing: saved } of repairs) {
     const update = {};
     if (!saved.address && job.address) update.address = job.address;
@@ -68,14 +69,15 @@ export async function importIntegration(integration) {
       if (result.notDispatch) continue;
       checked++;
       ignored += result.ignored || 0;
+      updated += result.updated || 0;
       if (!result.found) continue;
-      imported = result.imported; updated = result.updated; found = result.found; existing = result.existing || 0; selectedMessage = message;
+      imported += result.imported || 0; found = result.found; existing = result.existing || 0; selectedMessage = message;
       break;
     } catch (error) { console.error('Dispatch message import failed:', message.id, error); }
   }
   const { error: updateError } = await admin().from('gmail_integrations').update({ last_message_id: selectedMessage?.id || messages[0].id, last_import_at: new Date().toISOString() }).eq('company_id', integration.company_id);
   if (updateError) throw updateError;
-  const parts = []; if (checked) parts.push('Checked '+checked+' Master Dispatch PDF'+(checked === 1 ? '' : 's')+'.'); if (found) parts.push('Next dispatch contains '+found+' future job'+(found === 1 ? '' : 's')+'.'); if (imported) parts.push('Imported '+imported+' new job'+(imported === 1 ? '' : 's')+'.'); if (existing) parts.push(existing+' existing work order'+(existing === 1 ? ' was' : 's were')+' left unchanged.'); if (ignored) parts.push('Skipped '+ignored+' job'+(ignored === 1 ? '' : 's')+' dated today or earlier.');
+  const parts = []; if (checked) parts.push('Checked '+checked+' Master Dispatch PDF'+(checked === 1 ? '' : 's')+'.'); if (found) parts.push('Next dispatch contains '+found+' future job'+(found === 1 ? '' : 's')+'.'); if (imported) parts.push('Imported '+imported+' new job'+(imported === 1 ? '' : 's')+'.'); if (updated) parts.push('Updated '+updated+' existing job'+(updated === 1 ? '' : 's')+' with missing dispatch details.'); if (existing) parts.push(existing+' existing work order'+(existing === 1 ? ' was' : 's were')+' left unchanged.'); if (ignored) parts.push('Skipped '+ignored+' job'+(ignored === 1 ? '' : 's')+' dated today or earlier.');
   return { imported, updated, skipped: !imported && !updated, message: parts.join(' ') || 'No future jobs were found in the recent Master Dispatch PDFs.' };
 }
 export async function importCompanyDispatch(companyId) {
