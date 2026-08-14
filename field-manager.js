@@ -91,6 +91,7 @@ const demoJobs=[
 ];
 let jobs=JSON.parse(localStorage.getItem('akon-air-jobs')||'null')||demoJobs;
 const WAREHOUSE_DEFAULT='273 Bowes Rd, Vaughan, ON L4K 1H8';
+const LEGAL_COMPANY_NAME='17827512 CANADA INC.',OPERATING_BRAND='Operating as Akon Air';
 let travelData=JSON.parse(localStorage.getItem('akon-air-travel')||'{}'),travelWarehouse=localStorage.getItem('akon-air-warehouse')||WAREHOUSE_DEFAULT;
 const DEFAULT_SAVED_LOCATIONS=[{id:'home',label:'Amrit s home',address:'17 Rushbrook Drive, Brampton, Ontario'},{id:'warehouse',label:'GoLime warehouse',address:WAREHOUSE_DEFAULT},{id:'karan-home',label:'Karan s home',address:'2920 Hwy 7, Vaughan, ON L4K 0P4'}];
 let savedLocations=JSON.parse(localStorage.getItem('akon-air-saved-locations')||'null')||DEFAULT_SAVED_LOCATIONS;if(!savedLocations.some(location=>location.id==='karan-home'||location.address==='2920 Hwy 7, Vaughan, ON L4K 0P4')){savedLocations.push({id:'karan-home',label:'Karan s home',address:'2920 Hwy 7, Vaughan, ON L4K 0P4'});localStorage.setItem('akon-air-saved-locations',JSON.stringify(savedLocations))}
@@ -306,3 +307,25 @@ if('serviceWorker' in navigator&&!localStorage.getItem('akon-air-worker-reset-v1
 // the same work order.
 // Preserve an edit made on this device until it has successfully reached the cloud.
 mergeJobsForSync=(localJobs=[],remoteJobs=[])=>{const key=job=>String(job.workOrder||job.id||'').match(/\d{5,}/)?.[0]||String(job.workOrder||job.id||''),blank=value=>!String(value||'').trim()||/^(?:-|n\/?a|address not available)$/i.test(String(value).trim()),score=job=>(blank(job.address)?0:10)+(job.phone?2:0)+(job.equipment?2:0)+(job.workType==='Meeting'?3:0)+(job.appointmentStart?1:0),best=items=>items.reduce((winner,item)=>!winner||score(item)>=score(winner)?item:winner,null),remoteByKey=new Map(),localByKey=new Map();for(const job of remoteJobs){const id=key(job),prior=remoteByKey.get(id);if(!prior||score(job)>=score(prior))remoteByKey.set(id,job)}for(const job of localJobs){const id=key(job),prior=localByKey.get(id);if(!prior||jobEditQueue.has(job.id)||statusChangeQueue.has(job.id)||score(job)>=score(prior))localByKey.set(id,job)}return [...new Set([...remoteByKey.keys(),...localByKey.keys()])].map(id=>{const cloud=remoteByKey.get(id),local=localByKey.get(id);if(!cloud)return repairMeetingMistake({...local});if(!local)return repairMeetingMistake({...cloud});const localWins=!isUuid(String(local.id||''))||jobEditQueue.has(local.id)||statusChangeQueue.has(local.id),result={...cloud,id:cloud.id,photos:mergePhotoSets(cloud.photos,local.photos)};if(localWins){for(const field of ['date','status','source','workOrder','workType','customer','phone','email','address','equipment','modelNumber','serialNumber','notes','appointmentStart','appointmentEnd','customAmount','serviceHours'])if(local[field]!==undefined)result[field]=local[field];result.extras=local.extras||[];result.additionalWork=local.additionalWork||[]}else{for(const field of ['workOrder','customer','phone','email','address','equipment','modelNumber','serialNumber','notes','appointmentStart','appointmentEnd'])if(blank(result[field])&&!blank(local[field]))result[field]=local[field];result.extras=mergeExtras(cloud.extras,local.extras);result.additionalWork=cloud.additionalWork?.length?cloud.additionalWork:(local.additionalWork||[])}return repairMeetingMistake(result)})};
+
+// Every printable document must lead with the registered legal company name.
+// This wrapper applies the same legal masthead to completion reports, claims,
+// travel reimbursement, and extra-charge PDFs without changing any job data.
+const nativeReportWindowOpen=window.open.bind(window);
+window.open=(...args)=>{
+  const reportWindow=nativeReportWindowOpen(...args);
+  if(!reportWindow?.document)return reportWindow;
+  const nativeWrite=reportWindow.document.write.bind(reportWindow.document);
+  reportWindow.document.write=markup=>{
+    let documentHtml=String(markup);
+    const legalHeading=`<div class="legal-document-company"><h1>${LEGAL_COMPANY_NAME}</h1><p>${OPERATING_BRAND}</p><small>GoLime field document</small></div>`;
+    documentHtml=documentHtml
+      .replace(/<h1>Akon Air\s*(?:-|\s+)\s*GoLime Claim<\/h1>/g,legalHeading)
+      .replace(/<div><b>AKON AIR<\/b><small>GOLIME COMPLETION REPORT<\/small><\/div>/g,`<div class="legal-document-company"><b>${LEGAL_COMPANY_NAME}</b><small>${OPERATING_BRAND} · GoLime Completion Report</small></div>`)
+      .replace(/Akon Air Field Management/g,`${LEGAL_COMPANY_NAME} · ${OPERATING_BRAND}`)
+      .replace(/<title>([^<]*(?:Completion Report|GoLime Claim)[^<]*)<\/title>/g,`<title>${LEGAL_COMPANY_NAME} — $1</title>`)
+      .replace('</style>','.legal-document-company h1{font-size:22px!important;letter-spacing:.3px}.legal-document-company p{margin:3px 0 0;font-weight:700}.legal-document-company small{display:block;margin-top:2px}</style>');
+    return nativeWrite(documentHtml);
+  };
+  return reportWindow;
+};
