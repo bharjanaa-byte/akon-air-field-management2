@@ -95,6 +95,25 @@ export async function importIntegration(integration) {
   const { error: updateError } = await admin().from('gmail_integrations').update({ last_message_id: selectedMessage?.id || messages[0].id, last_import_at: new Date().toISOString() }).eq('company_id', integration.company_id);
   if (updateError) throw updateError;
   const parts = []; if (checked) parts.push('Checked '+checked+' Master Dispatch PDF'+(checked === 1 ? '' : 's')+'.'); if (found) parts.push('Next dispatch contains '+found+' future job'+(found === 1 ? '' : 's')+'.'); if (imported) parts.push('Imported '+imported+' new job'+(imported === 1 ? '' : 's')+'.'); if (updated) parts.push('Updated '+updated+' existing job'+(updated === 1 ? '' : 's')+' with missing dispatch details.'); if (existing) parts.push(existing+' existing work order'+(existing === 1 ? ' was' : 's were')+' left unchanged.'); if (ignored) parts.push('Skipped '+ignored+' job'+(ignored === 1 ? '' : 's')+' dated today or earlier.');
+  // The inbox can contain several revisions of the same dispatch.  Return one
+  // canonical card per work order to the phone: a newer/complete address must
+  // never be overwritten by an older, incomplete copy from another PDF.
+  const workOrderKey = (value) => String(value || '').match(/\d{5,}/)?.[0] || String(value || '');
+  const missing = (value) => !String(value || '').trim() || /^(?:-|n\/?a|address not available)$/i.test(String(value).trim());
+  const recordScore = (job) =>
+    (missing(job.address) ? 0 : 20) +
+    (job.workType === 'Meeting' ? 8 : 0) +
+    (job.phone ? 3 : 0) +
+    (job.equipment ? 3 : 0) +
+    (job.appointmentStart ? 2 : 0) +
+    (job.appointmentEnd ? 2 : 0);
+  const canonical = new Map();
+  for (const record of records) {
+    const key = workOrderKey(record.workOrder);
+    const prior = canonical.get(key);
+    if (!prior || recordScore(record) >= recordScore(prior)) canonical.set(key, record);
+  }
+  records = [...canonical.values()];
   return { imported, updated, records, skipped: !imported && !updated, message: parts.join(' ') || 'No dispatch jobs were found.' };
 }
 export async function importCompanyDispatch(companyId) {
