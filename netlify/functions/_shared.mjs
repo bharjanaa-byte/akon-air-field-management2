@@ -97,7 +97,9 @@ export function parseDispatch(text) {
     const city = citySource.match(/^([A-Z][a-z.]+(?:[ -][A-Z][a-z.]+){0,2})/)?.[1] || '';
     const assetStart = times[1] ? segment.indexOf(times[1]) + times[1].length : (times[0] ? segment.indexOf(times[0]) + times[0].length : 0);
     const equipment = phoneAt > assetStart ? segment.slice(assetStart, phoneAt).trim() : '';
-    const isMeeting = /__MEETING__|\bMeeting\b/i.test(segment);
+    // Only the marked appointment row is a meeting. A broad "Meeting" search
+    // can see a different table column and incorrectly convert every job.
+    const isMeeting = /__MEETING__/i.test(segment);
     const warehouseMeeting = /273\s+Bowes\s+R(?:oa)?d/i.test(segment);
     const workType = isMeeting ? 'Meeting' : /Air Conditioner/i.test(equipment) ? 'Air Conditioner' : /Tankless/i.test(equipment) ? 'Tankless (Replacement)' : /Furnace|Air Handler/i.test(equipment) ? 'Furnace / Air Handler' : /Water Heater|WHGS|Bradford White|PV50/i.test(equipment) ? 'Conventional Water Heater' : 'Custom / Other';
     return {

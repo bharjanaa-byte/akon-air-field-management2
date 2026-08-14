@@ -57,6 +57,7 @@ async function importMessage(integration, token, messageId) {
     if (!saved.appointment_start && job.appointmentStart) update.appointment_start = job.appointmentStart;
     if (!saved.appointment_end && job.appointmentEnd) update.appointment_end = job.appointmentEnd;
     if (job.workType === 'Meeting' && saved.work_type !== 'Meeting') { update.work_type = 'Meeting'; update.customer_name = 'GoLime meeting'; }
+    if (imported && job.workType !== 'Meeting' && saved.work_type !== job.workType) { update.work_type = job.workType; update.customer_name = job.customer; }
     if (Object.keys(update).length) { const { error } = await client.from('jobs').update(update).eq('id', saved.id); if (error) throw error; }
   }
   // Gmail is intentionally add-only. It must never move, edit, or overwrite
