@@ -41,7 +41,8 @@ async function importMessage(integration, token, messageId) {
   const missing = value => !String(value || '').trim() || /^(?:-|n\/?a|address not available)$/i.test(String(value).trim());
   const existingByWorkOrder = new Map((existing || []).map(job => [workOrderKey(job.work_order), job]));
   const savedFor = job => existingByWorkOrder.get(workOrderKey(job.workOrder));
-  const fresh = extracted.filter(job => !savedFor(job)).map(job => ({ company_id: integration.company_id, created_by: integration.connected_by, source: job.source, work_order: job.workOrder, job_date: job.date, status: job.status, work_type: job.workType, customer_name: job.customer, phone: job.phone || null, address: job.address || null, equipment: job.equipment || null, notes: job.notes, extras: [], appointment_start: job.appointmentStart, appointment_end: job.appointmentEnd }));
+  const importedRecords = extracted.filter(job => !savedFor(job));
+  const fresh = importedRecords.map(job => ({ company_id: integration.company_id, created_by: integration.connected_by, source: job.source, work_order: job.workOrder, job_date: job.date, status: job.status, work_type: job.workType, customer_name: job.customer, phone: job.phone || null, address: job.address || null, equipment: job.equipment || null, notes: job.notes, extras: [], appointment_start: job.appointmentStart, appointment_end: job.appointmentEnd }));
   if (fresh.length) { const { error } = await client.from('jobs').insert(fresh); if (error) throw error; }
   const repairs = allExtracted.map(job => ({ job, existing: savedFor(job) })).filter(({ job, existing }) => { const imported = /^Imported automatically from GoLime Master Dispatch\./i.test(existing?.notes || ''); return existing && (imported && job.address || missing(existing.address) && job.address || missing(existing.phone) && job.phone || missing(existing.equipment) && job.equipment || !existing.appointment_start && job.appointmentStart || !existing.appointment_end && job.appointmentEnd || job.workType === 'Meeting' && existing.work_type !== 'Meeting') });
   for (const { job, existing: saved } of repairs) {
@@ -57,7 +58,10 @@ async function importMessage(integration, token, messageId) {
   }
   // Gmail is intentionally add-only. It must never move, edit, or overwrite
   // a job the team has already saved in the field app.
-  return { imported: fresh.length, updated: repairs.length, found: extracted.length, existing: extracted.length - fresh.length, ignored: allExtracted.length - extracted.length };
+  // Return every current/future record, not only newly inserted ones. The app
+  // uses these details to immediately repair an older phone-only card with the
+  // same work order, while preserving its photos and extras.
+  return { imported: fresh.length, updated: repairs.length, found: extracted.length, existing: extracted.length - fresh.length, ignored: allExtracted.length - extracted.length, records: extracted };
 }
 
 export async function importIntegration(integration) {
@@ -68,7 +72,7 @@ export async function importIntegration(integration) {
   const listResponse = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=30&q='+encodeURIComponent(query), { headers: { authorization: 'Bearer '+token } });
   const list = await listResponse.json(); if (!listResponse.ok) throw new Error(list.error?.message || 'Could not search Gmail.');
   const messages = list.messages || []; if (!messages.length) return { imported: 0, updated: 0, skipped: true, message: 'No matching Master Dispatch email was found.' };
-  let imported = 0, updated = 0, found = 0, existing = 0, ignored = 0, checked = 0, selectedMessage = null;
+  let imported = 0, updated = 0, found = 0, existing = 0, ignored = 0, checked = 0, selectedMessage = null, records = [];
   for (const message of messages) {
     try {
       const result = await importMessage(integration, token, message.id);
@@ -80,13 +84,14 @@ export async function importIntegration(integration) {
       imported += result.imported || 0;
       found += result.found || 0;
       existing += result.existing || 0;
+      records.push(...(result.records || []));
       selectedMessage ||= message;
     } catch (error) { console.error('Dispatch message import failed:', message.id, error); }
   }
   const { error: updateError } = await admin().from('gmail_integrations').update({ last_message_id: selectedMessage?.id || messages[0].id, last_import_at: new Date().toISOString() }).eq('company_id', integration.company_id);
   if (updateError) throw updateError;
   const parts = []; if (checked) parts.push('Checked '+checked+' Master Dispatch PDF'+(checked === 1 ? '' : 's')+'.'); if (found) parts.push('Next dispatch contains '+found+' future job'+(found === 1 ? '' : 's')+'.'); if (imported) parts.push('Imported '+imported+' new job'+(imported === 1 ? '' : 's')+'.'); if (updated) parts.push('Updated '+updated+' existing job'+(updated === 1 ? '' : 's')+' with missing dispatch details.'); if (existing) parts.push(existing+' existing work order'+(existing === 1 ? ' was' : 's were')+' left unchanged.'); if (ignored) parts.push('Skipped '+ignored+' job'+(ignored === 1 ? '' : 's')+' dated today or earlier.');
-  return { imported, updated, skipped: !imported && !updated, message: parts.join(' ') || 'No future jobs were found in the recent Master Dispatch PDFs.' };
+  return { imported, updated, records, skipped: !imported && !updated, message: parts.join(' ') || 'No dispatch jobs were found.' };
 }
 export async function importCompanyDispatch(companyId) {
   const { data: integration, error } = await admin().from('gmail_integrations').select('*').eq('company_id', companyId).maybeSingle();
