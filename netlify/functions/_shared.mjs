@@ -53,7 +53,10 @@ export function parseDispatch(text) {
   // the numeric work-order code are often separated by the whole job row, so
   // do not assume they are adjacent.
   const source = String(text || '').replace(/\s+/g, ' ').trim();
-  const chunks = source.split(/(?=WO-\s*(?:Go(?:\s*Lime)?|Simply\s+Smart|[A-Z][A-Za-z ]{1,30})\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep(?:t)?|Oct|Nov|Dec)\s+\d{1,2},\s+\d{4})/i)
+  // A dispatch may put the six-digit work order immediately after WO- or in
+  // the later External Work Order Number column.  Splitting at every WO-
+  // marker supports both layouts and keeps every scheduled job separate.
+  const chunks = source.split(/(?=WO-\s*)/i)
     .filter(part => /WO-\s*/i.test(part));
   const month = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, sept: 8, oct: 9, nov: 10, dec: 11 };
   const isoDate = (value) => {
