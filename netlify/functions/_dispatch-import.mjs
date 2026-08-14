@@ -47,7 +47,7 @@ export async function importIntegration(integration) {
   // Search recent PDFs broadly, then confirm the PDF itself is a GoLime Master
   // Dispatch. This is safer than depending on an email subject that can vary.
   const query = 'has:attachment filename:pdf newer_than:30d';
-  const listResponse = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=25&q='+encodeURIComponent(query), { headers: { authorization: 'Bearer '+token } });
+  const listResponse = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=100&q='+encodeURIComponent(query), { headers: { authorization: 'Bearer '+token } });
   const list = await listResponse.json(); if (!listResponse.ok) throw new Error(list.error?.message || 'Could not search Gmail.');
   const messages = list.messages || []; if (!messages.length) return { imported: 0, updated: 0, skipped: true, message: 'No matching Master Dispatch email was found.' };
   let imported = 0, updated = 0, found = 0, existing = 0, ignored = 0, checked = 0, selectedMessage = null;
