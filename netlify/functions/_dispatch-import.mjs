@@ -11,6 +11,11 @@ const gmailToken = async (refreshToken) => {
 
 const parts = (node) => [node, ...(node.parts || []).flatMap(parts)];
 const decode = (value) => Buffer.from(value.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
+const torontoToday = () => {
+  const fields = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Toronto', year: 'numeric', month: '2-digit', day: '2-digit' })
+    .formatToParts(new Date()).reduce((all, part) => ({ ...all, [part.type]: part.value }), {});
+  return [fields.year, fields.month, fields.day].join('-');
+};
 
 async function importMessage(integration, token, messageId) {
   const emailResponse = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}?format=full`, { headers: { authorization: `Bearer ${token}` } });
@@ -21,8 +26,9 @@ async function importMessage(integration, token, messageId) {
   const rawResponse = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}/attachments/${attachment.body.attachmentId}`, { headers: { authorization: `Bearer ${token}` } });
   const raw = await rawResponse.json();
   if (!rawResponse.ok) throw new Error(raw.error?.message || 'Could not download the dispatch PDF.');
-  const extracted = parseDispatch((await pdf(decode(raw.data))).text);
-  if (!extracted.length) return { imported: 0, updated: 0 };
+  const allExtracted = parseDispatch((await pdf(decode(raw.data))).text);
+  const extracted = allExtracted.filter(job => job.date > torontoToday());
+  if (!extracted.length) return { imported: 0, updated: 0, found: 0, ignored: allExtracted.length };
   const client = admin(), workOrders = extracted.map(job => job.workOrder);
   const { data: existing, error: readError } = await client.from('jobs').select('id,work_order').eq('company_id', integration.company_id).in('work_order', workOrders);
   if (readError) throw readError;
@@ -31,23 +37,30 @@ async function importMessage(integration, token, messageId) {
   if (fresh.length) { const { error } = await client.from('jobs').insert(fresh); if (error) throw error; }
   // Gmail is intentionally add-only. It must never move, edit, or overwrite
   // a job the team has already saved in the field app.
-  return { imported: fresh.length, updated: 0, found: extracted.length, existing: extracted.length - fresh.length };
+  return { imported: fresh.length, updated: 0, found: extracted.length, existing: extracted.length - fresh.length, ignored: allExtracted.length - extracted.length };
 }
 
 export async function importIntegration(integration) {
   const token = await gmailToken(integration.refresh_token), query = env('DISPATCH_GMAIL_QUERY');
-  // Only the newest matching dispatch is read. Older daily schedules must not
-  // be allowed to add or alter jobs for an earlier date.
-  const listResponse = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=1&q=${encodeURIComponent(query)}`, { headers: { authorization: `Bearer ${token}` } });
+  // Check a short recent window, but import only the first PDF that contains
+  // future-dated work. Same-day and old schedules are never added.
+  const listResponse = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=10&q='+encodeURIComponent(query), { headers: { authorization: 'Bearer '+token } });
   const list = await listResponse.json(); if (!listResponse.ok) throw new Error(list.error?.message || 'Could not search Gmail.');
   const messages = list.messages || []; if (!messages.length) return { imported: 0, updated: 0, skipped: true, message: 'No matching Master Dispatch email was found.' };
-  let imported = 0, updated = 0, found = 0, existing = 0;
-  const message = messages[0];
-  try { const result = await importMessage(integration, token, message.id); imported = result.imported; updated = result.updated; found = result.found || 0; existing = result.existing || 0; } catch (error) { console.error('Dispatch message import failed:', message.id, error); throw error; }
-  const { error: updateError } = await admin().from('gmail_integrations').update({ last_message_id: messages[0].id, last_import_at: new Date().toISOString() }).eq('company_id', integration.company_id);
+  let imported = 0, updated = 0, found = 0, existing = 0, ignored = 0, selectedMessage = null;
+  for (const message of messages) {
+    try {
+      const result = await importMessage(integration, token, message.id);
+      ignored += result.ignored || 0;
+      if (!result.found) continue;
+      imported = result.imported; updated = result.updated; found = result.found; existing = result.existing || 0; selectedMessage = message;
+      break;
+    } catch (error) { console.error('Dispatch message import failed:', message.id, error); }
+  }
+  const { error: updateError } = await admin().from('gmail_integrations').update({ last_message_id: selectedMessage?.id || messages[0].id, last_import_at: new Date().toISOString() }).eq('company_id', integration.company_id);
   if (updateError) throw updateError;
-  const parts = []; if (found) parts.push(`Newest dispatch contains ${found} scheduled job${found === 1 ? '' : 's'}.`); if (imported) parts.push(`Imported ${imported} new job${imported === 1 ? '' : 's'}.`); if (existing) parts.push(`${existing} existing work order${existing === 1 ? ' was' : 's were'} left unchanged.`);
-  return { imported, updated, skipped: !imported && !updated, message: parts.join(' ') || 'The recent Master Dispatch emails are already up to date.' };
+  const parts = []; if (found) parts.push('Next dispatch contains '+found+' future job'+(found === 1 ? '' : 's')+'.'); if (imported) parts.push('Imported '+imported+' new job'+(imported === 1 ? '' : 's')+'.'); if (existing) parts.push(existing+' existing work order'+(existing === 1 ? ' was' : 's were')+' left unchanged.'); if (ignored) parts.push('Skipped '+ignored+' job'+(ignored === 1 ? '' : 's')+' dated today or earlier.');
+  return { imported, updated, skipped: !imported && !updated, message: parts.join(' ') || 'No future jobs were found in the recent Master Dispatch emails.' };
 }
 export async function importCompanyDispatch(companyId) {
   const { data: integration, error } = await admin().from('gmail_integrations').select('*').eq('company_id', companyId).maybeSingle();
