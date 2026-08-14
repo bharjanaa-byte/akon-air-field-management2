@@ -39,12 +39,15 @@ async function importMessage(integration, token, messageId) {
   if (readError) throw readError;
   const workOrderKey = value => String(value || '').match(/\d{5,}/)?.[0] || String(value || '').trim();
   const missing = value => !String(value || '').trim() || /^(?:-|n\/?a|address not available)$/i.test(String(value).trim());
-  const existingByWorkOrder = new Map((existing || []).map(job => [workOrderKey(job.work_order), job]));
-  const savedFor = job => existingByWorkOrder.get(workOrderKey(job.workOrder));
-  const importedRecords = extracted.filter(job => !savedFor(job));
+  // A prior version could create duplicate cloud records for one work order.
+  // Keep every matching record here so a dispatch can repair all of them.
+  const existingByWorkOrder = new Map();
+  for (const record of existing || []) { const key = workOrderKey(record.work_order); existingByWorkOrder.set(key, [...(existingByWorkOrder.get(key) || []), record]); }
+  const savedFor = job => existingByWorkOrder.get(workOrderKey(job.workOrder)) || [];
+  const importedRecords = extracted.filter(job => !savedFor(job).length);
   const fresh = importedRecords.map(job => ({ company_id: integration.company_id, created_by: integration.connected_by, source: job.source, work_order: job.workOrder, job_date: job.date, status: job.status, work_type: job.workType, customer_name: job.customer, phone: job.phone || null, address: job.address || null, equipment: job.equipment || null, notes: job.notes, extras: [], appointment_start: job.appointmentStart, appointment_end: job.appointmentEnd }));
   if (fresh.length) { const { error } = await client.from('jobs').insert(fresh); if (error) throw error; }
-  const repairs = allExtracted.map(job => ({ job, existing: savedFor(job) })).filter(({ job, existing }) => { const imported = /^Imported automatically from GoLime Master Dispatch\./i.test(existing?.notes || ''); return existing && (imported && job.address || missing(existing.address) && job.address || missing(existing.phone) && job.phone || missing(existing.equipment) && job.equipment || !existing.appointment_start && job.appointmentStart || !existing.appointment_end && job.appointmentEnd || job.workType === 'Meeting' && existing.work_type !== 'Meeting') });
+  const repairs = allExtracted.flatMap(job => savedFor(job).map(existing => ({ job, existing }))).filter(({ job, existing }) => { const imported = /^Imported automatically from GoLime Master Dispatch\./i.test(existing?.notes || ''); return imported && job.address || missing(existing.address) && job.address || missing(existing.phone) && job.phone || missing(existing.equipment) && job.equipment || !existing.appointment_start && job.appointmentStart || !existing.appointment_end && job.appointmentEnd || job.workType === 'Meeting' && existing.work_type !== 'Meeting' });
   for (const { job, existing: saved } of repairs) {
     const update = {};
     const imported = /^Imported automatically from GoLime Master Dispatch\./i.test(saved.notes || '');
