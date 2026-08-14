@@ -84,15 +84,21 @@ export function parseDispatch(text) {
     const phone = phoneMatch ? `+${phoneMatch[0].replace(/\D/g, '').replace(/^1?/, '1')}` : '';
     const phoneAt = phoneMatch ? phoneMatch.index : -1;
     const postalAt = postal?.index ?? -1;
-    const address = phoneAt >= 0 && postalAt > phoneAt ? segment.slice(phoneAt + phoneMatch[0].length, postalAt).replace(/\s+/g, ' ').replace(/^[-,:]+|[-,:]+$/g, '').trim() : '';
+    // PDF column order is not reliable: some emailed dispatches put Street
+    // before Phone, while others put it after. Read the street immediately
+    // before the postal code first, then fall back to the older phone range.
+    const beforePostal = postalAt >= 0 ? segment.slice(0, postalAt).replace(/\s+/g, ' ') : '';
+    const streetMatches = [...beforePostal.matchAll(/\b(\d{1,5}\s+(?:[A-Za-z0-9.'-]+\s+){0,5}(?:Street|St|Road|Rd|Avenue|Ave|Drive|Dr|Boulevard|Blvd|Trail|Lane|Ln|Court|Ct|Way|Place|Pl|Crescent|Cres|Highway|Hwy))\b/gi)];
+    const streetByPostal = streetMatches.length ? streetMatches[streetMatches.length - 1][1].trim() : '';
+    const address = streetByPostal || (phoneAt >= 0 && postalAt > phoneAt ? segment.slice(phoneAt + phoneMatch[0].length, postalAt).replace(/\s+/g, ' ').replace(/^[-,:]+|[-,:]+$/g, '').trim() : '');
     // Stop at the numeric work-order column rather than at the notes column.
     // This keeps city names while deliberately ignoring work-order notes.
     const citySource = afterPostal.split(/\b\d{6}\b/)[0].trim();
     const city = citySource.match(/^([A-Z][a-z.]+(?:[ -][A-Z][a-z.]+){0,2})/)?.[1] || '';
     const assetStart = times[1] ? segment.indexOf(times[1]) + times[1].length : (times[0] ? segment.indexOf(times[0]) + times[0].length : 0);
     const equipment = phoneAt > assetStart ? segment.slice(assetStart, phoneAt).trim() : '';
-    const isMeeting = /__MEETING__/i.test(segment);
-    const warehouseMeeting = /273\s+Bowes\s+R(?:oa)?d/i.test(address);
+    const isMeeting = /__MEETING__|\bMeeting\b/i.test(segment);
+    const warehouseMeeting = /273\s+Bowes\s+R(?:oa)?d/i.test(segment);
     const workType = isMeeting ? 'Meeting' : /Air Conditioner/i.test(equipment) ? 'Air Conditioner' : /Tankless/i.test(equipment) ? 'Tankless (Replacement)' : /Furnace|Air Handler/i.test(equipment) ? 'Furnace / Air Handler' : /Water Heater|WHGS|Bradford White|PV50/i.test(equipment) ? 'Conventional Water Heater' : 'Custom / Other';
     return {
       workOrder, date: isoDate(times[0] || ''), appointmentStart: timeStamp(times[0] || ''), appointmentEnd: timeStamp(times[1] || ''),
