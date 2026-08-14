@@ -29,7 +29,9 @@ async function importMessage(integration, token, messageId) {
   const dispatchText = (await pdf(decode(raw.data))).text;
   if (!/Master\s+Dispatch\s+Schedule/i.test(dispatchText)) return { imported: 0, updated: 0, found: 0, ignored: 0, notDispatch: true };
   const allExtracted = parseDispatch(dispatchText);
-  const extracted = allExtracted.filter(job => job.date > torontoToday());
+  // A dispatch for today's work must still be imported after midnight. Older
+  // dispatches are used only to repair missing details on existing records.
+  const extracted = allExtracted.filter(job => job.date >= torontoToday());
   // Old and same-day dispatches cannot create new jobs, but they can safely
   // fill missing address, phone, time, equipment, and meeting details.
   const client = admin();
