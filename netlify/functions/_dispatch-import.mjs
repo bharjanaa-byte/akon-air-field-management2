@@ -32,14 +32,25 @@ async function importMessage(integration, token, messageId) {
   const extracted = allExtracted.filter(job => job.date > torontoToday());
   if (!extracted.length) return { imported: 0, updated: 0, found: 0, ignored: allExtracted.length };
   const client = admin(), workOrders = extracted.map(job => job.workOrder);
-  const { data: existing, error: readError } = await client.from('jobs').select('id,work_order').eq('company_id', integration.company_id).in('work_order', workOrders);
+  const { data: existing, error: readError } = await client.from('jobs').select('id,work_order,address,phone,equipment,work_type,customer_name,appointment_start,appointment_end').eq('company_id', integration.company_id).in('work_order', workOrders);
   if (readError) throw readError;
   const existingByWorkOrder = new Map((existing || []).map(job => [job.work_order, job]));
   const fresh = extracted.filter(job => !existingByWorkOrder.has(job.workOrder)).map(job => ({ company_id: integration.company_id, created_by: integration.connected_by, source: job.source, work_order: job.workOrder, job_date: job.date, status: job.status, work_type: job.workType, customer_name: job.customer, phone: job.phone || null, address: job.address || null, equipment: job.equipment || null, notes: job.notes, extras: [], appointment_start: job.appointmentStart, appointment_end: job.appointmentEnd }));
   if (fresh.length) { const { error } = await client.from('jobs').insert(fresh); if (error) throw error; }
+  const repairs = extracted.map(job => ({ job, existing: existingByWorkOrder.get(job.workOrder) })).filter(({ job, existing }) => existing && (!existing.address && job.address || !existing.phone && job.phone || !existing.equipment && job.equipment || !existing.appointment_start && job.appointmentStart || !existing.appointment_end && job.appointmentEnd || job.workType === 'Meeting' && existing.work_type !== 'Meeting'));
+  for (const { job, existing: saved } of repairs) {
+    const update = {};
+    if (!saved.address && job.address) update.address = job.address;
+    if (!saved.phone && job.phone) update.phone = job.phone;
+    if (!saved.equipment && job.equipment) update.equipment = job.equipment;
+    if (!saved.appointment_start && job.appointmentStart) update.appointment_start = job.appointmentStart;
+    if (!saved.appointment_end && job.appointmentEnd) update.appointment_end = job.appointmentEnd;
+    if (job.workType === 'Meeting' && saved.work_type !== 'Meeting') { update.work_type = 'Meeting'; update.customer_name = 'GoLime meeting'; }
+    if (Object.keys(update).length) { const { error } = await client.from('jobs').update(update).eq('id', saved.id); if (error) throw error; }
+  }
   // Gmail is intentionally add-only. It must never move, edit, or overwrite
   // a job the team has already saved in the field app.
-  return { imported: fresh.length, updated: 0, found: extracted.length, existing: extracted.length - fresh.length, ignored: allExtracted.length - extracted.length };
+  return { imported: fresh.length, updated: repairs.length, found: extracted.length, existing: extracted.length - fresh.length, ignored: allExtracted.length - extracted.length };
 }
 
 export async function importIntegration(integration) {

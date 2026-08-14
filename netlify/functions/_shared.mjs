@@ -52,11 +52,11 @@ export function parseDispatch(text) {
   // GoLime's PDF exports columns in reading order.  In that output "WO-" and
   // the numeric work-order code are often separated by the whole job row, so
   // do not assume they are adjacent.
-  const source = String(text || '').replace(/\s+/g, ' ').trim();
+  const source = String(text || '').replace(/\s+/g, ' ').trim().replace(/Meeting\s*\(\s*\d+\s*\)\s+WO-\s*(\d{5,})/gi, 'WO-$1 __MEETING__ ');
   // A dispatch may put the six-digit work order immediately after WO- or in
   // the later External Work Order Number column.  Splitting at every WO-
   // marker supports both layouts and keeps every scheduled job separate.
-  const chunks = source.split(/(?=WO-\s*)/i)
+  const chunks = source.split(/(?=(?:(?:Installation\s+Appointment|Meeting)\s*\(\s*\d+\s*\)\s+)?WO-\s*)/i)
     .filter(part => /WO-\s*/i.test(part));
   const month = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, sept: 8, oct: 9, nov: 10, dec: 11 };
   const isoDate = (value) => {
@@ -91,11 +91,13 @@ export function parseDispatch(text) {
     const city = citySource.match(/^([A-Z][a-z.]+(?:[ -][A-Z][a-z.]+){0,2})/)?.[1] || '';
     const assetStart = times[1] ? segment.indexOf(times[1]) + times[1].length : (times[0] ? segment.indexOf(times[0]) + times[0].length : 0);
     const equipment = phoneAt > assetStart ? segment.slice(assetStart, phoneAt).trim() : '';
-    const workType = /Air Conditioner/i.test(equipment) ? 'Air Conditioner' : /Tankless/i.test(equipment) ? 'Tankless (Replacement)' : /Furnace|Air Handler/i.test(equipment) ? 'Furnace / Air Handler' : /Water Heater|WHGS|Bradford White|PV50/i.test(equipment) ? 'Conventional Water Heater' : 'Custom / Other';
+    const isMeeting = /__MEETING__/i.test(segment);
+    const warehouseMeeting = /273\s+Bowes\s+R(?:oa)?d/i.test(address);
+    const workType = isMeeting ? 'Meeting' : /Air Conditioner/i.test(equipment) ? 'Air Conditioner' : /Tankless/i.test(equipment) ? 'Tankless (Replacement)' : /Furnace|Air Handler/i.test(equipment) ? 'Furnace / Air Handler' : /Water Heater|WHGS|Bradford White|PV50/i.test(equipment) ? 'Conventional Water Heater' : 'Custom / Other';
     return {
       workOrder, date: isoDate(times[0] || ''), appointmentStart: timeStamp(times[0] || ''), appointmentEnd: timeStamp(times[1] || ''),
-      source: 'goline', status: 'Assigned', workType, customer: 'GoLime customer', phone,
-      address: [address, city, postal?.[1]?.replace(/\s/g, '').toUpperCase()].filter(Boolean).join(', '), equipment,
+      source: 'goline', status: 'Assigned', workType, customer: isMeeting ? 'GoLime meeting' : 'GoLime customer', phone,
+      address: warehouseMeeting ? 'GoLime Warehouse, 273 Bowes Road, Vaughan, ON L4K 1H8' : [address, city, postal?.[1]?.replace(/\s/g, '').toUpperCase()].filter(Boolean).join(', '), equipment,
       notes: `Imported automatically from GoLime Master Dispatch. Scheduled ${times[0] || ''}${times[1] ? ` to ${times[1]}` : ''}.`, extras: []
     };
   }).filter(job => job.workOrder && job.date);
