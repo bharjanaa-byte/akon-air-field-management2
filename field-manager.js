@@ -554,6 +554,23 @@ settingsView=()=>{
   updateSharedSyncStatus();loadEmailDispatchStatus();
 };
 
+let fileStartDate='',fileEndDate='',fileSearchQuery='';
+filesView=()=>{
+  app.append(template('files-template'));
+  const sharedReports=jobs.filter(job=>job.source==='goline'&&!String(job.id).startsWith('demo-')).map(job=>({id:'shared-'+job.id,jobId:job.id,workOrder:job.workOrder||'',type:'report',label:(job.workOrder||'Job')+' completion report',address:job.address||'Address not available',createdAt:new Date(job.date+'T12:00:00').getTime(),shared:true}));
+  const localReports=exportedFiles.filter(file=>!sharedReports.some(shared=>shared.jobId===file.jobId)).map(file=>({...file,type:file.type==='claim'?'claim':'report'}));
+  const query=fileSearchQuery.trim().toLowerCase(),matches=file=>!query||[file.workOrder,file.label,file.address].some(value=>String(value||'').toLowerCase().includes(query)),dateMatches=file=>{const date=dateISO(new Date(file.createdAt));return (!filesExactDate||date===filesExactDate)&&(!fileStartDate||date>=fileStartDate)&&(!fileEndDate||date<=fileEndDate)};
+  const files=[...sharedReports,...localReports].filter(file=>!hiddenFileIds.has(file.id)).filter(file=>(filesTypeFilter==='all'||file.type===filesTypeFilter)&&matches(file)&&dateMatches(file)).sort((a,b)=>b.createdAt-a.createdAt);
+  const typeLabel=filesTypeFilter==='claim'?'GOLIME CLAIMS':filesTypeFilter==='report'?'COMPLETION REPORTS':'ALL FILES';
+  document.querySelector('#fileListLabel').textContent=typeLabel;document.querySelector('#fileListTitle').textContent=filesExactDate?new Date(filesExactDate+'T12:00:00').toLocaleDateString('en-CA',{month:'long',day:'numeric',year:'numeric'}):fileStartDate||fileEndDate?'Selected date range':typeLabel==='ALL FILES'?'Files':typeLabel;
+  document.querySelectorAll('.file-filter').forEach(button=>button.classList.toggle('active',button.dataset.fileFilter===filesTypeFilter));
+  document.querySelector('#fileSearch').value=fileSearchQuery;document.querySelector('#fileExactDate').value=filesExactDate;document.querySelector('#fileStartDate').value=fileStartDate;document.querySelector('#fileEndDate').value=fileEndDate;
+  document.querySelector('#recentFiles').innerHTML=files.map(file=>'<article class="claim-summary-row"><div><strong>'+esc(file.label)+'</strong><span style="color:'+(file.type==='claim'?'#0c72b8':'#52717f')+';font-weight:800">'+(file.type==='claim'?'GoLime claim':'Completion report')+'</span><span>'+esc(file.address||'Address not available')+'   '+new Date(file.createdAt).toLocaleString('en-CA',{month:'short',day:'numeric',year:'numeric'})+'</span></div><div style="display:flex;gap:7px"><button class="secondary small" data-action="'+(file.shared?'open-shared-report':'open-file')+'" data-file-id="'+file.id+'" data-job-id="'+(file.jobId||'')+'">Open</button><button class="secondary small" style="color:#a22626;border-color:#efcaca" data-action="delete-file" data-file-id="'+file.id+'">Delete</button></div></article>').join('')||empty('No files match these filters.');
+};
+window.addEventListener('click',event=>{const button=event.target.closest('.file-filter');if(!button)return;event.preventDefault();event.stopImmediatePropagation();filesTypeFilter=button.dataset.fileFilter||'all';filesView()},true);
+window.addEventListener('input',event=>{if(event.target.id!=='fileSearch')return;fileSearchQuery=event.target.value||'';filesView()},true);
+window.addEventListener('change',event=>{const id=event.target.id;if(!['fileExactDate','fileStartDate','fileEndDate'].includes(id))return;event.stopImmediatePropagation();if(id==='fileExactDate'){filesExactDate=event.target.value||'';fileStartDate='';fileEndDate=''}else{filesExactDate='';if(id==='fileStartDate')fileStartDate=event.target.value||'';else fileEndDate=event.target.value||''}filesView()},true);
+
 // Every printable document must lead with the registered legal company name.
 // This wrapper applies the same legal masthead to completion reports, claims,
 // travel reimbursement, and extra-charge PDFs without changing any job data.

@@ -116,7 +116,7 @@
 
   <template id="files-template">
     <section class="page-title"><div><p class="eyebrow">DOCUMENT CENTRE</p><h1>Files & reports</h1><p>Completion reports and GoLime claims, organized for review.</p></div></section>
-    <section class="form-card"><p class="eyebrow">FILE TYPE</p><div class="filters"><button class="file-filter active" data-file-filter="all">All files</button><button class="file-filter" data-file-filter="claim">GoLime claims</button><button class="file-filter" data-file-filter="report">Completion reports</button></div><label style="display:block;margin-top:14px;font-size:12px;color:var(--muted)">Specific date<input id="fileExactDate" type="date" style="margin-top:5px"></label><p class="travel-status">Completion reports are available from synced jobs. Deleting an entry only removes it from this device s Files list; it never deletes the job.</p></section>
+    <section class="form-card"><p class="eyebrow">FILE TYPE</p><div class="filters"><button class="file-filter active" data-file-filter="all">All files</button><button class="file-filter" data-file-filter="claim">GoLime claims</button><button class="file-filter" data-file-filter="report">Completion reports</button></div><label style="display:block;margin-top:14px;font-size:12px;color:var(--muted)">Search work order or address<input id="fileSearch" type="search" autocomplete="off" placeholder="e.g. WO-169933 or Brampton" style="margin-top:5px"></label><div class="form-grid" style="margin-top:12px"><label>Specific date<input id="fileExactDate" type="date"></label><label>From date<input id="fileStartDate" type="date"></label><label>To date<input id="fileEndDate" type="date"></label></div><p class="travel-status">Completion reports are available from synced jobs. Deleting an entry only removes it from this device s Files list; it never deletes the job.</p></section>
     <section class="section-heading"><div><p class="eyebrow" id="fileListLabel">ALL FILES</p><h2 id="fileListTitle">Files</h2></div></section><div class="card-list" id="recentFiles"></div>
   </template>  <template id="money-template">
     <section class="page-title"><div><p class="eyebrow">GO LINE PAYMENTS</p><h1>Money owed</h1><p>Track completed subcontracted work and payments.</p></div></section>
@@ -184,7 +184,7 @@
     <section class="form-card"><p class="eyebrow">ACCOUNT</p><h2>Signed-in user</h2><p id="settingsAccount" class="travel-status">Checking account...</p><button class="secondary wide" data-action="sign-out">Sign out of this device</button></section>
   </template>  <script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistration('./').then(registration=>registration?.update())}</script>
   <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-  <script defer src="field-manager.js?v=138"></script>
+  <script defer src="field-manager.js?v=139"></script>
 </body>
 </html>
 
