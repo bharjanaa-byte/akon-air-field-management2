@@ -210,7 +210,7 @@ document.addEventListener('submit',e=>{if(e.target.id!=='jobForm')return;e.preve
 document.addEventListener('click',async e=>{const action=e.target.closest('[data-action]');if(!action)return;if(action.dataset.action==='remove-extra'){const job=jobs.find(item=>item.id===action.dataset.jobId),index=Number(action.dataset.extraIndex);if(!job||!Number.isInteger(index)||!job.extras?.[index])return;if(!confirm('Remove this extra charge from '+(job.workOrder||'this job')+'?'))return;job.extras.splice(index,1);rememberJobEdit(job.id);save();if(currentView==='extras')extrasView();return}if(action.dataset.action==='delete-job'){const job=jobs.find(item=>item.id===action.dataset.jobId);if(!job)return;if(!confirm(`Delete ${job.workOrder||job.customer||'this job'}? This cannot be undone.`))return;try{if(remoteReady&&isUuid(job.id)){const result=await supabase.from('jobs').delete().eq('id',job.id);if(result.error)throw result.error}jobs=jobs.filter(item=>item.id!==job.id);saveLocal();render('jobs')}catch(error){alert('This job could not be deleted from the shared workspace.');console.error('Job deletion failed:',error)}}if(action.dataset.action==='pdf'||action.dataset.action==='submit-goline'){const job=jobs.find(item=>item.id===action.dataset.jobId);if(job)recordExport({id:`job-${job.id}`,type:'job',jobId:job.id,label:`${job.workOrder||'Job'} completion report`,address:job.address||'Address not available',createdAt:Date.now()})}if(action.dataset.action==='claim-pdf'){const data=claimData();recordExport({id:`claim-${data.start}-${data.end}`,type:'claim',start:data.start,end:data.end,label:`GoLime claim   ${data.start} to ${data.end}`,address:travelWarehouse,createdAt:Date.now()})}if(action.dataset.action==='open-shared-report'){const job=jobs.find(item=>item.id===action.dataset.jobId);if(job)generateReport(job);else alert('This shared job report is not available on this device yet. Try syncing again.')}if(action.dataset.action==='open-file'){const file=exportedFiles.find(item=>item.id===action.dataset.fileId);if(!file)return;if(file.type==='job'){const job=jobs.find(item=>item.id===file.jobId);if(job)generateReport(job);else alert('The job for this report has been deleted.')}else if(file.type==='claim'){claimStart=file.start;claimEnd=file.end;generateClaimPDF()}}if(e.target.classList.contains('filter'))setTimeout(enableJobDeletion,0)});
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;document.querySelector('#installButton').hidden=false});document.querySelector('#installButton').onclick=async()=>{if(deferredPrompt){deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;document.querySelector('#installButton').hidden=true}};
 document.addEventListener('click',e=>{if(e.target.closest('[data-action="retry-startup"]'))bootCloud()});
-if('serviceWorker'in navigator)navigator.serviceWorker.register('./service-worker.js?v=128');navigator.storage?.persist?.();window.addEventListener('online',()=>{if(remoteReady){scheduleCloudSync();requestCloudRefresh()}});window.addEventListener('offline',()=>{if(currentView==='job-photos'){const note=document.querySelector('#photoSyncNote');if(note)note.textContent='Offline mode: photos are being saved on this device and will sync when online.'}});bootCloud();setInterval(updateHeader,30000);
+if('serviceWorker'in navigator)navigator.serviceWorker.register('./service-worker.js?v=128');navigator.storage?.persist?.();window.addEventListener('online',()=>{if(remoteReady){scheduleCloudSync();requestCloudRefresh()}});window.addEventListener('offline',()=>{if(currentView==='job-photos'){const note=document.querySelector('#photoSyncNote');if(note)note.textContent='Offline mode: photos are being saved on this device and will sync when online.'}});setTimeout(()=>bootCloud(),0);setInterval(updateHeader,30000);
 
 document.addEventListener('click',async e=>{const pressed=e.target.closest('[data-action="sync-now"]');if(!pressed)return;e.preventDefault();try{skippedPhotoReferences=0;if(!remoteReady||!currentUser){updateSharedSyncStatus('Reconnecting your saved sign-in to the shared workspace...');const reconnected=await reconnectSharedWorkspace();if(!reconnected)return}const button=document.querySelector('[data-action="sync-now"]');if(button)button.disabled=true;updateSharedSyncStatus('Syncing this device with the shared workspace...');setPendingCloudSync(true);await pushCloudData();await refreshFromCloud();updateSharedSyncStatus(skippedPhotoReferences?'Sync complete. '+skippedPhotoReferences+' unavailable old photo reference'+(skippedPhotoReferences===1?' was':'s were')+' skipped; all available data and photos are synced.':'Sync complete. This device now matches the shared workspace.')}catch(error){console.error('Manual sync failed:',error);updateSharedSyncStatus(error.message||'Sync could not finish yet. Keep the app open with an internet connection and try again.')}finally{const button=document.querySelector('[data-action="sync-now"]');if(button)button.disabled=false}},true);document.addEventListener('change',e=>{const select=e.target.closest('[data-action="change-status"]');if(!select)return;e.stopPropagation();const job=jobs.find(item=>item.id===select.dataset.jobId);if(!job)return;const nextStatus=select.value;if(!JOB_STATUSES.includes(nextStatus)||job.status===nextStatus)return;job.status=nextStatus;rememberStatusChange(job.id);save();if(currentView==='jobs')renderFilteredJobs();else if(currentView==='calendar')drawCalendar();});document.addEventListener('click',async e=>{const action=e.target.closest('[data-action]');if(!action)return;if(action.dataset.action==='delete-file'){const id=action.dataset.fileId;if(!confirm('Remove this entry from this device s Files list? The job and its synced information will remain safe.'))return;hiddenFileIds.add(id);saveHiddenFiles();if(currentView==='files')filesView()}if(action.dataset.action==='sign-out'){if(!confirm('Sign out of this device? Your saved offline jobs and photos will remain on this device.'))return;try{await supabase?.auth.signOut();remoteReady=false;currentUser=null;currentMembership=null;render('login')}catch(error){alert('Could not sign out right now.')}}if(action.classList.contains('file-filter')){filesTypeFilter=action.dataset.fileFilter;filesView()}});document.addEventListener('change',e=>{if(e.target.id==='fileExactDate'){filesExactDate=e.target.value;filesView()}});
 
@@ -498,6 +498,35 @@ window.addEventListener('click',async event=>{
   if(file.type==='claim'){claimStart=file.start;claimEnd=file.end;generateClaimPDF();return}
   await openLatestCompletionReport(file);
 },true);
+
+// Daily use starts in the shared workspace. The existing account remains
+// available in Settings, and the sign-in screen is only used for a new device
+// or after a deliberate sign-out/reconnect.
+bootCloud=async()=>{
+  const hasSavedWorkspace=localStorage.getItem('akon-air-offline-access')==='1'||jobs.some(job=>!String(job.id||'').startsWith('demo-'));
+  if(hasSavedWorkspace)render('dashboard');else render('login');
+  try{
+    await ensureCloudClient();
+    const session=await supabase.auth.getSession();
+    if(!session.data?.session){
+      remoteReady=false;
+      if(!hasSavedWorkspace){const status=document.querySelector('#loginStatus');if(status)status.textContent='Sign in once to connect this new device to the shared workspace.';}
+      return;
+    }
+    await startCloudSession(session.data.session);
+  }catch(error){
+    remoteReady=false;
+    if(!hasSavedWorkspace){const status=document.querySelector('#loginStatus');if(status)status.textContent='Could not connect this device yet. Check your internet connection and try again.';}
+    else console.warn('Shared workspace will reconnect in the background.',error);
+  }
+};
+
+settingsView=()=>{
+  app.append(template('settings-template'));
+  const account=document.querySelector('#settingsAccount');
+  if(account)account.textContent=currentUser?.email||'Shared workspace is stored on this device. Use Sync all devices now to reconnect if needed.';
+  updateSharedSyncStatus();loadEmailDispatchStatus();
+};
 
 // Every printable document must lead with the registered legal company name.
 // This wrapper applies the same legal masthead to completion reports, claims,
