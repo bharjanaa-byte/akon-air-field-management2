@@ -499,6 +499,32 @@ window.addEventListener('click',async event=>{
   await openLatestCompletionReport(file);
 },true);
 
+// Keep structured service-address fields with the job while continuing to
+// provide the combined address used by maps, reports, and existing records.
+const combineServiceAddress=(street='',city='',postal='')=>[String(street).trim(),[String(city).trim(),'ON',String(postal).trim().toUpperCase()].filter(Boolean).join(', ')].filter(Boolean).join(', ');
+const splitServiceAddress=value=>{const source=String(value||'').trim(),postal=source.match(/\b([A-Z]\d[A-Z][ -]?\d[A-Z]\d)\b/i)?.[1]?.toUpperCase()||'',withoutPostal=source.replace(/\b[A-Z]\d[A-Z][ -]?\d[A-Z]\d\b/i,'').replace(/,?\s*Ontario\b|,?\s*ON\b/i,'').trim(),parts=withoutPostal.split(',').map(part=>part.trim()).filter(Boolean);return {street:parts.shift()||'',city:parts.join(', ')||'',postal};};
+packEquipment=job=>{const addressParts={street:job.addressStreet||'',city:job.addressCity||'',postalCode:job.addressPostal||'',province:'Ontario'},details={modelNumber:job.modelNumber||'',serialNumber:job.serialNumber||'',customAmount:Number(job.customAmount||0),serviceHours:Number(job.serviceHours||0),additionalWork:job.additionalWork||[],addressParts};if(!details.modelNumber&&!details.serialNumber&&!details.customAmount&&!details.serviceHours&&!details.additionalWork.length&&!addressParts.street&&!addressParts.city&&!addressParts.postalCode)return job.equipment||null;return `${job.equipment||''} [[AKON_ASSET:${encodeURIComponent(JSON.stringify(details))}]]`};
+unpackEquipment=value=>{const source=String(value||''),match=source.match(/\s*\[\[AKON_ASSET:([^\]]+)\]\]$/);if(!match)return {equipment:source,modelNumber:'',serialNumber:'',customAmount:0,serviceHours:0,additionalWork:[],addressStreet:'',addressCity:'',addressPostal:''};try{const details=JSON.parse(decodeURIComponent(match[1])),address=details.addressParts||{};return {equipment:source.slice(0,match.index).trim(),modelNumber:details.modelNumber||'',serialNumber:details.serialNumber||'',customAmount:Number(details.customAmount||0),serviceHours:Number(details.serviceHours||0),additionalWork:Array.isArray(details.additionalWork)?details.additionalWork:[],addressStreet:address.street||'',addressCity:address.city||'',addressPostal:address.postalCode||''}}catch{return {equipment:source,modelNumber:'',serialNumber:'',customAmount:0,serviceHours:0,additionalWork:[],addressStreet:'',addressCity:'',addressPostal:''}}};
+cloudToJob=(row,photos)=>{const asset=unpackEquipment(row.equipment),legacy=splitServiceAddress(row.address);return {id:row.id,source:row.source,workOrder:row.work_order||'',date:row.job_date,status:row.status,workType:row.work_type||'Custom / Other',customer:row.customer_name||'GoLime customer',phone:row.phone||'',email:row.email||'',address:row.address||'',addressStreet:asset.addressStreet||legacy.street,addressCity:asset.addressCity||legacy.city,addressPostal:asset.addressPostal||legacy.postal,equipment:asset.equipment,modelNumber:asset.modelNumber,serialNumber:asset.serialNumber,customAmount:asset.customAmount,serviceHours:asset.serviceHours,additionalWork:asset.additionalWork,notes:row.notes||'',appointmentStart:row.appointment_start||'',appointmentEnd:row.appointment_end||'',extras:row.extras||[],photos:photos[row.id]||{}}};
+
+const originalJobForm=jobForm;
+jobForm=()=>{originalJobForm();const form=document.querySelector('#jobForm'),isGoLime=activeSource==='goline';if(!form)return;form.elements.workOrder.required=isGoLime;['date','workType','customer','address'].forEach(name=>{const field=form.elements.namedItem(name);if(field)field.required=false});};
+const originalOpenEditJob=openEditJob;
+openEditJob=jobId=>{originalOpenEditJob(jobId);const job=jobs.find(item=>item.id===jobId),form=document.querySelector('#jobForm');if(!job||!form)return;const fallback=splitServiceAddress(job.address);form.elements.addressStreet.value=job.addressStreet||fallback.street;form.elements.addressCity.value=job.addressCity||fallback.city;form.elements.addressPostal.value=job.addressPostal||fallback.postal;form.elements.address.value=job.address||'';};
+
+// The direct Akon Air workflow intentionally has no required data fields.
+// GoLime keeps its work order requirement because it is the external key.
+window.addEventListener('submit',event=>{
+  if(event.target.id!=='jobForm')return;
+  event.preventDefault();event.stopImmediatePropagation();
+  const form=new FormData(event.target),existing=editingJobId?jobs.find(job=>job.id===editingJobId):null,source=existing?.source||activeSource,street=String(form.get('addressStreet')||'').trim(),city=String(form.get('addressCity')||'').trim(),postal=String(form.get('addressPostal')||'').trim().toUpperCase(),address=combineServiceAddress(street,city,postal)||String(form.get('address')||'').trim(),workOrder=String(form.get('workOrder')||'').trim();
+  if(source==='goline'&&!workOrder){alert('A GoLime Work Order Number is required.');return}
+  const job=existing||{id:'job-'+Date.now()+'-'+Math.random().toString(36).slice(2),source,extras:[],additionalWork:[],photos:{}};
+  Object.assign(job,{workOrder,date:String(form.get('date')||today),status:String(form.get('status')||'Assigned'),workType:String(form.get('workType')||'Custom / Other'),customer:String(form.get('customer')||'').trim(),phone:String(form.get('phone')||'').trim(),address,addressStreet:street,addressCity:city,addressPostal:postal,email:String(form.get('email')||'').trim(),equipment:String(form.get('equipment')||'').trim(),notes:String(form.get('notes')||'').trim(),customAmount:Number(form.get('customAmount')||0),serviceHours:Math.max(.25,Number(form.get('serviceHours'))||1),additionalWork:[...document.querySelectorAll('.additional-work-row select')].map(select=>({workType:select.value})).filter(item=>item.workType),extras:[...document.querySelectorAll('.extra-row:not(.additional-work-row)')].map(row=>({description:row.querySelector('.extra-desc')?.value.trim()||'',amount:Number(row.querySelector('.extra-amount')?.value||0)})).filter(item=>item.description||item.amount)});
+  if(existing){rememberJobEdit(job.id)}else jobs.unshift(job);
+  save();activeJobId=job.id;editingJobId=null;render('detail');
+},true);
+
 // Daily use starts in the shared workspace. The existing account remains
 // available in Settings, and the sign-in screen is only used for a new device
 // or after a deliberate sign-out/reconnect.

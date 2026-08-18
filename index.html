@@ -81,16 +81,20 @@
     <section class="page-title"><button class="back" data-view="job-choice" aria-label="Go back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5 7.5 12l7 7M8 12h9"/></svg></button><div><p class="eyebrow" id="jobSourceLabel"></p><h1 id="jobFormTitle">New job</h1><p id="jobFormSubtitle"></p></div></section>
     <form id="jobForm" class="form-stack">
       <section class="form-card"><h2>Job details</h2><div class="form-grid">
-        <label class="full goline-only">Work Order Number <em>Required</em><input name="workOrder" required placeholder="e.g. GL-45872"></label>
-        <label>Appointment date<input name="date" type="date" required></label>
+        <label class="full">Work Order Number <em class="goline-only">Required for GoLime</em><input name="workOrder" placeholder="Optional for Akon Air jobs"></label>
+        <label>Appointment date<input name="date" type="date"></label>
         <label>Job status<select name="status"><option>Assigned</option><option>In Progress</option><option>Waiting for Parts</option><option>Completed</option><option>Submitted to GoLime</option><option>Paid</option></select></label>
-        <label class="full">Installation / work type<select name="workType" id="workType" required></select></label>
+        <label class="full">Installation / work type<select name="workType" id="workType"></select></label>
         <label class="full">Job notes<textarea name="notes" rows="3" placeholder="Access notes, job details, equipment information "></textarea></label>
       </div></section>
       <section class="form-card"><h2>Customer information</h2><div class="form-grid">
-        <label>Customer name<input name="customer" required placeholder="Full name"></label>
+        <label>Customer name<input name="customer" placeholder="Full name"></label>
         <label>Phone<input name="phone" type="tel" placeholder="Phone number"></label>
-        <label class="full">Service address<input name="address" required placeholder="Street, city, postal code"></label>
+        <label class="full">Street address<input name="addressStreet" placeholder="Street number and name"></label>
+        <label>City<input name="addressCity" placeholder="e.g. Brampton"></label>
+        <label>Province<input value="Ontario" disabled></label>
+        <label>Postal code<input name="addressPostal" placeholder="e.g. L6V 1A6" autocapitalize="characters"></label>
+        <input name="address" type="hidden">
         <label>Email<input name="email" type="email" placeholder="Email address"></label>
         <label>Equipment / serial<input name="equipment" placeholder="Optional"></label>
       </div></section>
@@ -180,7 +184,7 @@
     <section class="form-card"><p class="eyebrow">ACCOUNT</p><h2>Signed-in user</h2><p id="settingsAccount" class="travel-status">Checking account...</p><button class="secondary wide" data-action="sign-out">Sign out of this device</button></section>
   </template>  <script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistration('./').then(registration=>registration?.update())}</script>
   <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-  <script defer src="field-manager.js?v=137"></script>
+  <script defer src="field-manager.js?v=138"></script>
 </body>
 </html>
 
