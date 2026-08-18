@@ -424,6 +424,33 @@ mergeJobsForSync=(localJobs=[],remoteJobs=[])=>{
   });
 };
 
+// Use one handler for the manual recovery button. Older versions added more
+// than one document handler, which could start two competing uploads and hide
+// the useful error behind an empty browser message.
+window.addEventListener('click',async event=>{
+  const button=event.target.closest('[data-action="sync-now"]');
+  if(!button)return;
+  event.preventDefault();event.stopImmediatePropagation();
+  const statusText=message=>updateSharedSyncStatus(message);
+  button.disabled=true;
+  try{
+    if(!navigator.onLine)throw new Error('This phone is offline. Connect to Wi-Fi or mobile data; your queued jobs and photos are still saved on this device.');
+    statusText('Checking this device before syncing...');
+    if(!remoteReady||!currentUser){const connected=await reconnectSharedWorkspace();if(!connected)throw new Error('Please sign in once on this device before syncing.');}
+    statusText('Uploading saved jobs, travel, and available photos...');
+    const summary=await pushCloudData();
+    const cloud=await loadCloudData();
+    jobs=mergeJobsForSync(jobs,cloud.jobs);travelData={...cloud.travel,...travelData};saveLocal();localStorage.setItem('akon-air-travel',JSON.stringify(travelData));
+    setPendingCloudSync(false);
+    statusText(`Sync complete: ${summary.jobs} jobs and ${summary.photos} photos uploaded. This device now has ${jobs.length} shared jobs.`);
+    if(['dashboard','jobs','detail','files','settings'].includes(currentView))render(currentView);
+  }catch(error){
+    const detail=String(error?.message||error||'Unknown sync error').replace(/\s+/g,' ').trim();
+    console.error('Shared workspace recovery failed:',error);
+    statusText(`Sync needs attention: ${detail}`);
+  }finally{button.disabled=false;}
+},true);
+
 // Every printable document must lead with the registered legal company name.
 // This wrapper applies the same legal masthead to completion reports, claims,
 // travel reimbursement, and extra-charge PDFs without changing any job data.
