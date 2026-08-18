@@ -308,6 +308,122 @@ if('serviceWorker' in navigator&&!localStorage.getItem('akon-air-worker-reset-v1
 // Preserve an edit made on this device until it has successfully reached the cloud.
 mergeJobsForSync=(localJobs=[],remoteJobs=[])=>{const key=job=>String(job.workOrder||job.id||'').match(/\d{5,}/)?.[0]||String(job.workOrder||job.id||''),blank=value=>!String(value||'').trim()||/^(?:-|n\/?a|address not available)$/i.test(String(value).trim()),score=job=>(blank(job.address)?0:10)+(job.phone?2:0)+(job.equipment?2:0)+(job.workType==='Meeting'?3:0)+(job.appointmentStart?1:0),best=items=>items.reduce((winner,item)=>!winner||score(item)>=score(winner)?item:winner,null),remoteByKey=new Map(),localByKey=new Map();for(const job of remoteJobs){const id=key(job),prior=remoteByKey.get(id);if(!prior||score(job)>=score(prior))remoteByKey.set(id,job)}for(const job of localJobs){const id=key(job),prior=localByKey.get(id);if(!prior||jobEditQueue.has(job.id)||statusChangeQueue.has(job.id)||score(job)>=score(prior))localByKey.set(id,job)}return [...new Set([...remoteByKey.keys(),...localByKey.keys()])].map(id=>{const cloud=remoteByKey.get(id),local=localByKey.get(id);if(!cloud)return repairMeetingMistake({...local});if(!local)return repairMeetingMistake({...cloud});const localWins=!isUuid(String(local.id||''))||jobEditQueue.has(local.id)||statusChangeQueue.has(local.id),result={...cloud,id:cloud.id,photos:mergePhotoSets(cloud.photos,local.photos)};if(localWins){for(const field of ['date','status','source','workOrder','workType','customer','phone','email','address','equipment','modelNumber','serialNumber','notes','appointmentStart','appointmentEnd','customAmount','serviceHours'])if(local[field]!==undefined)result[field]=local[field];result.extras=local.extras||[];result.additionalWork=local.additionalWork||[]}else{for(const field of ['workOrder','customer','phone','email','address','equipment','modelNumber','serialNumber','notes','appointmentStart','appointmentEnd'])if(blank(result[field])&&!blank(local[field]))result[field]=local[field];result.extras=mergeExtras(cloud.extras,local.extras);result.additionalWork=cloud.additionalWork?.length?cloud.additionalWork:(local.additionalWork||[])}return repairMeetingMistake(result)})};
 
+// Reliable shared-device sync.  Never remove a local photo reference just
+// because the browser cannot read its offline copy at this moment.  It stays
+// queued on that device until it can be uploaded or the user removes it.
+const queuedPhotoCount=()=>jobs.reduce((count,job)=>count+Object.values(job.photos||{}).flat().filter(source=>String(source).startsWith(OFFLINE_PHOTO_PREFIX)||String(source).startsWith('data:')).length,0);
+syncJobPhotos=async job=>{
+  const result={uploaded:0,waiting:0,errors:[]};
+  for(const [category,images] of Object.entries(job.photos||{})){
+    for(let index=0;index<images.length;index++){
+      const source=images[index],offline=String(source).startsWith(OFFLINE_PHOTO_PREFIX),inline=String(source).startsWith('data:');
+      if(!offline&&!inline)continue;
+      let blob=null;
+      try{blob=offline?await getOfflinePhoto(source):await fetch(source).then(response=>{if(!response.ok)throw new Error('The selected image could not be prepared.');return response.blob()})}
+      catch(error){result.waiting++;result.errors.push(`${category}: ${error.message||'photo could not be read yet'}`);continue}
+      if(!blob||!blob.size){result.waiting++;result.errors.push(`${category}: photo is still stored only on this device or has no image data yet`);continue}
+      try{
+        const extension=blob.type.includes('png')?'png':'jpg',photoId=offline?source.slice(OFFLINE_PHOTO_PREFIX.length).replace(/[^a-z0-9-]/gi,''):Date.now()+'-'+index,path=currentMembership.company_id+'/'+job.id+'/'+category.replace(/[^a-z0-9]+/gi,'-').toLowerCase()+'/'+photoId+'.'+extension;
+        const upload=await retryPhotoSync(()=>supabase.storage.from('job-photos').upload(path,blob,{upsert:true,contentType:blob.type}));
+        if(upload.error)throw upload.error;
+        const record=await retryPhotoSync(()=>supabase.from('job_photos').upsert({company_id:currentMembership.company_id,job_id:job.id,category,storage_path:path,uploaded_by:currentUser.id},{onConflict:'storage_path'}));
+        if(record.error)throw record.error;
+        images[index]=CLOUD_PHOTO_PREFIX+path;
+        if(offline)await removeOfflinePhoto(source);
+        result.uploaded++;saveLocal();
+      }catch(error){result.waiting++;result.errors.push(`${category}: ${error.message||'upload did not finish'}`)}
+    }
+  }
+  if(!result.waiting){photoRemovalJobs.delete(job.id);savePhotoRemovalQueue()}
+  return result;
+};
+
+pushCloudData=async()=>{
+  if(!navigator.onLine)throw new Error('This device is offline. Your jobs and photos are safely queued until it reconnects.');
+  if(!remoteReady||!currentMembership||!currentUser)throw new Error('The shared workspace is not connected on this device. Sign in once, then sync again.');
+  if(cloudPushPromise)return cloudPushPromise;
+  cloudPushPromise=(async()=>{
+    const summary={jobs:0,photos:0,waiting:0,problems:[]};
+    const latest=await loadCloudData();
+    jobs=mergeJobsForSync(jobs,latest.jobs);
+    travelData={...latest.travel,...travelData};
+    saveLocal();
+    for(const job of jobs.filter(item=>!String(item.id).startsWith('demo-'))){
+      let remote;
+      if(isUuid(String(job.id)))remote=await supabase.from('jobs').upsert({...jobToCloud(job),id:job.id}).select().single();
+      else remote=await supabase.from('jobs').insert(jobToCloud(job)).select().single();
+      if(remote.error)throw new Error(`Could not save ${job.workOrder||'a job'}: ${remote.error.message}`);
+      if(remote.data?.id&&job.id!==remote.data.id){job.id=remote.data.id;saveLocal()}
+      summary.jobs++;
+      const photos=await syncJobPhotos(job);
+      summary.photos+=photos.uploaded;summary.waiting+=photos.waiting;summary.problems.push(...photos.errors);
+      clearStatusChange(job.id);clearJobEdit(job.id);
+    }
+    for(const [date,record] of Object.entries(travelData)){
+      if(record?.farthestKm===undefined)continue;
+      const calc=travelPay(record),response=await supabase.from('travel_records').upsert({company_id:currentMembership.company_id,travel_date:date,warehouse_address:record.warehouse||travelWarehouse,farthest_one_way_km:Number(record.farthestKm),reimbursable_km:calc.reimbursable,travel_pay:calc.amount,route_details:{routes:record.routes||[],totalRouteKm:Number(record.totalRouteKm||record.farthestKm||0),detourKm:Number(record.detourKm||0),calculationVersion:record.calculationVersion||'detour-v1',travelSignature:record.travelSignature||''},manual_distance:!!record.manual,created_by:currentUser.id},{onConflict:'company_id,travel_date'});
+      if(response.error)throw new Error(`Could not save travel for ${date}: ${response.error.message}`);
+    }
+    saveLocal();localStorage.setItem('akon-air-travel',JSON.stringify(travelData));
+    const stillQueued=queuedPhotoCount();
+    setPendingCloudSync(stillQueued>0);
+    if(stillQueued){const detail=summary.problems[0]?` ${summary.problems[0]}.`:'';throw new Error(`${summary.jobs} jobs and ${summary.photos} photos synced. ${stillQueued} photo${stillQueued===1?' is':'s are'} still safely waiting on this device.${detail}`)}
+    return summary;
+  })();
+  try{return await cloudPushPromise}finally{cloudPushPromise=null}
+};
+
+// Opening the app must not fail just because a phone still has offline photos
+// queued.  Connect first, show all available records, then upload in the
+// background or when the user presses Sync.
+startCloudSession=async session=>{
+  currentUser=session.user;
+  const membership=await supabase.from('company_members').select('company_id,full_name,role').eq('user_id',currentUser.id).maybeSingle();
+  if(membership.error)throw membership.error;
+  if(!membership.data)throw new Error('This sign-in is not part of the shared Akon Air workspace.');
+  currentMembership=membership.data;
+  const deviceJobs=jobs.slice(),deviceTravel={...travelData},remote=await loadCloudData();
+  remoteReady=true;
+  localStorage.setItem('akon-air-offline-access','1');
+  jobs=mergeJobsForSync(deviceJobs,remote.jobs);
+  travelData={...remote.travel,...deviceTravel};
+  saveLocal();localStorage.setItem('akon-air-travel',JSON.stringify(travelData));
+  const hasLocalJobs=deviceJobs.some(job=>!isUuid(String(job.id))&&!String(job.id).startsWith('demo-'));
+  if(pendingCloudSync||hasLocalJobs||queuedPhotoCount()){setPendingCloudSync(true);if(navigator.onLine)scheduleCloudSync()}
+  supabase.channel('akon-air-live-'+Date.now()).on('postgres_changes',{event:'*',schema:'public',table:'jobs',filter:`company_id=eq.${currentMembership.company_id}`},requestCloudRefresh).on('postgres_changes',{event:'*',schema:'public',table:'job_photos',filter:`company_id=eq.${currentMembership.company_id}`},requestCloudRefresh).on('postgres_changes',{event:'*',schema:'public',table:'travel_records',filter:`company_id=eq.${currentMembership.company_id}`},requestCloudRefresh).subscribe();
+  clearInterval(cloudPollTimer);cloudPollTimer=setInterval(requestCloudRefresh,5000);
+  render('dashboard');
+  automaticallyCalculateTravel([...new Set(jobs.filter(job=>job.source==='goline').map(job=>job.date))],true);
+};
+
+updateSharedSyncStatus=(message='')=>{
+  const status=document.querySelector('#sharedSyncStatus');
+  if(!status)return;
+  const localOnly=jobs.filter(job=>!isUuid(String(job.id))&&!String(job.id).startsWith('demo-')).length,queued=queuedPhotoCount();
+  status.textContent=message||(!remoteReady?'Reconnect this device to the shared workspace to sync saved data.':localOnly||queued?`This device has ${localOnly?localOnly+' job'+(localOnly===1?'':'s'):''}${localOnly&&queued?' and ':''}${queued?queued+' photo'+(queued===1?'':'s'):''} safely waiting to sync. Nothing will be removed.`:`All ${jobs.length} jobs on this device are synced to the shared workspace.`);
+};
+
+// A completed or paid status is never replaced by an older Assigned card from
+// another device. This is especially important when a phone was offline.
+const syncStatusRank=status=>({Assigned:1,Accepted:2,Driving:3,'On Site':4,Installing:5,'Waiting for Parts':5,Completed:6,'Submitted to GoLime':7,Paid:8}[status]||0);
+mergeJobsForSync=(localJobs=[],remoteJobs=[])=>{
+  const key=job=>String(job.workOrder||job.id||'').match(/\d{5,}/)?.[0]||String(job.workOrder||job.id||'');
+  const remoteByKey=new Map(remoteJobs.map(job=>[key(job),job])),localByKey=new Map(localJobs.map(job=>[key(job),job]));
+  return [...new Set([...remoteByKey.keys(),...localByKey.keys()])].map(id=>{
+    const cloud=remoteByKey.get(id),local=localByKey.get(id);
+    if(!cloud)return repairMeetingMistake({...local});
+    if(!local)return repairMeetingMistake({...cloud});
+    const localWins=!isUuid(String(local.id))||jobEditQueue.has(local.id)||statusChangeQueue.has(local.id)||syncStatusRank(local.status)>syncStatusRank(cloud.status);
+    const result=localWins?{...cloud,...local,id:cloud.id}:{...cloud,id:cloud.id};
+    result.photos=mergePhotoSets(cloud.photos,local.photos);
+    result.extras=mergeExtras(cloud.extras,local.extras);
+    result.additionalWork=(cloud.additionalWork?.length?cloud.additionalWork:local.additionalWork)||[];
+    for(const field of ['workOrder','customer','phone','email','address','equipment','modelNumber','serialNumber','notes','appointmentStart','appointmentEnd','date'])if(!String(result[field]||'').trim()&&String(local[field]||'').trim())result[field]=local[field];
+    if(syncStatusRank(cloud.status)>syncStatusRank(result.status))result.status=cloud.status;
+    return repairMeetingMistake(result);
+  });
+};
+
 // Every printable document must lead with the registered legal company name.
 // This wrapper applies the same legal masthead to completion reports, claims,
 // travel reimbursement, and extra-charge PDFs without changing any job data.
