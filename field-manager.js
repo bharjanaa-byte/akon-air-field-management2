@@ -98,7 +98,7 @@ let savedLocations=JSON.parse(localStorage.getItem('akon-air-saved-locations')||
 const saveLocations=()=>localStorage.setItem('akon-air-saved-locations',JSON.stringify(savedLocations));const mapsUrl=location=>location.current?'https://www.google.com/maps/search/?api=1&query=Current%20Location':`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location.address)}`;
 let exportedFiles=JSON.parse(localStorage.getItem('akon-air-exported-files')||'[]');
 const saveExportedFiles=()=>localStorage.setItem('akon-air-exported-files',JSON.stringify(exportedFiles));let hiddenFileIds=new Set(JSON.parse(localStorage.getItem('akon-air-hidden-files')||'[]')),filesTypeFilter='all',filesExactDate='';const saveHiddenFiles=()=>localStorage.setItem('akon-air-hidden-files',JSON.stringify([...hiddenFileIds]));
-function recordExport(file){hiddenFileIds.delete(file.id);saveHiddenFiles();exportedFiles=[file,...exportedFiles.filter(item=>item.id!==file.id)].slice(0,50);saveExportedFiles()}
+function recordExport(file){const job=file?.type==='job'?jobs.find(item=>item.id===file.jobId):null,enriched=job?{...file,jobId:job.id,workOrder:job.workOrder||file.workOrder,address:job.address||file.address}:file;hiddenFileIds.delete(enriched.id);saveHiddenFiles();exportedFiles=[enriched,...exportedFiles.filter(item=>item.id!==enriched.id)].slice(0,50);saveExportedFiles()}
 let activeSource='goline',activeJobId=null,activePhotoJobId=null,editingJobId=null,calendarDate=new Date(),selectedCalendarDay=today,travelDate=today,claimStart=dateISO(Date.now()-9*86400000),claimEnd=today,deferredPrompt=null,pendingDispatch=[],autoTravelBusy=false,travelCalculationFailures=JSON.parse(localStorage.getItem('akon-air-travel-failures')||'{}');
 let currentView='dashboard',allowDashboardRender=false,viewHistory=[],navigatingBack=false;
 const app=document.querySelector('#app');
@@ -451,6 +451,52 @@ window.addEventListener('click',async event=>{
     console.error('Shared workspace recovery failed:',error);
     statusText(`Sync needs attention: ${detail}`);
   }finally{button.disabled=false;}
+},true);
+
+// Reports are rebuilt from the live job record.  Old Files entries may still
+// carry the temporary phone ID that existed before that job was assigned its
+// shared cloud ID, so always recover the job by work-order as well.
+const reportWorkOrder=value=>String(value||'').match(/(?:WO[-\s]*)?(\d{5,})/i)?.[1]||'';
+const jobForReportFile=file=>{
+  const storedKey=reportWorkOrder(file?.workOrder)||reportWorkOrder(file?.label);
+  return jobs.find(job=>job.id===file?.jobId)||jobs.find(job=>storedKey&&reportWorkOrder(job.workOrder)===storedKey);
+};
+const repairExportedReportLinks=()=>{
+  let changed=false;
+  exportedFiles=exportedFiles.map(file=>{
+    if(file.type==='claim')return file;
+    const job=jobForReportFile(file);
+    if(!job)return file;
+    const repaired={...file,jobId:job.id,workOrder:job.workOrder||file.workOrder,address:job.address||file.address};
+    if(repaired.jobId!==file.jobId||repaired.workOrder!==file.workOrder||repaired.address!==file.address)changed=true;
+    return repaired;
+  });
+  if(changed)saveExportedFiles();
+};
+const openLatestCompletionReport=async file=>{
+  try{
+    if(remoteReady&&navigator.onLine){
+      const cloud=await loadCloudData();
+      jobs=mergeJobsForSync(jobs,cloud.jobs);travelData={...cloud.travel,...travelData};saveLocal();localStorage.setItem('akon-air-travel',JSON.stringify(travelData));
+    }
+    repairExportedReportLinks();
+    const job=jobForReportFile(file);
+    if(!job){alert('This report is linked to a job that is not available on this device yet. Use Sync all devices now; the job was not deleted.');return}
+    await generateReport(job);
+  }catch(error){console.error('Could not open the latest completion report:',error);alert('The report could not be refreshed from the shared workspace yet. Check your connection and try again.');}
+};
+window.addEventListener('click',async event=>{
+  const action=event.target.closest('[data-action="open-file"],[data-action="open-shared-report"]');
+  if(!action)return;
+  event.preventDefault();event.stopImmediatePropagation();
+  if(action.dataset.action==='open-shared-report'){
+    await openLatestCompletionReport({jobId:action.dataset.jobId,type:'report'});
+    return;
+  }
+  const file=exportedFiles.find(item=>item.id===action.dataset.fileId);
+  if(!file)return;
+  if(file.type==='claim'){claimStart=file.start;claimEnd=file.end;generateClaimPDF();return}
+  await openLatestCompletionReport(file);
 },true);
 
 // Every printable document must lead with the registered legal company name.
