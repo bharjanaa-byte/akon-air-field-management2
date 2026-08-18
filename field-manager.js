@@ -323,8 +323,10 @@ syncJobPhotos=async job=>{
       catch(error){result.waiting++;result.errors.push(`${category}: ${error.message||'photo could not be read yet'}`);continue}
       if(!blob||!blob.size){result.waiting++;result.errors.push(`${category}: photo is still stored only on this device or has no image data yet`);continue}
       try{
+        const bytes=await blob.arrayBuffer();
+        if(!bytes.byteLength)throw new Error('photo has no image bytes');
         const extension=blob.type.includes('png')?'png':'jpg',photoId=offline?source.slice(OFFLINE_PHOTO_PREFIX.length).replace(/[^a-z0-9-]/gi,''):Date.now()+'-'+index,path=currentMembership.company_id+'/'+job.id+'/'+category.replace(/[^a-z0-9]+/gi,'-').toLowerCase()+'/'+photoId+'.'+extension;
-        const upload=await retryPhotoSync(()=>supabase.storage.from('job-photos').upload(path,blob,{upsert:true,contentType:blob.type}));
+        const upload=await retryPhotoSync(()=>supabase.storage.from('job-photos').upload(path,bytes,{upsert:true,contentType:blob.type||'image/jpeg',cacheControl:'3600'}));
         if(upload.error)throw upload.error;
         const record=await retryPhotoSync(()=>supabase.from('job_photos').upsert({company_id:currentMembership.company_id,job_id:job.id,category,storage_path:path,uploaded_by:currentUser.id},{onConflict:'storage_path'}));
         if(record.error)throw record.error;
