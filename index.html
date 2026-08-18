@@ -67,7 +67,7 @@
 
   <template id="locations-template">
     <section class="page-title"><button class="back" data-view="dashboard" aria-label="Go back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5 7.5 12l7 7M8 12h9"/></svg></button><div><p class="eyebrow">SAVED LOCATIONS</p><h1>Places</h1><p>Save frequently used addresses and open them in Google Maps.</p></div></section>
-    <section class="form-card"><h2>Add a saved location</h2><form id="locationForm" class="form-stack" style="margin-top:14px"><label>Name<input name="label" required placeholder="e.g. Supplier, job site, home"></label><label>Address<input name="address" required placeholder="Street address, city, province"></label><button class="primary wide" type="submit">Save location</button></form></section>
+    <section class="form-card"><h2>Add a saved location</h2><form id="locationForm" class="form-stack" style="margin-top:14px"><label>Name<input name="label" required placeholder="e.g. Supplier, job site, home"></label><div class="form-grid"><label class="full">Street address<input name="addressStreet" placeholder="Street number and name"></label><label>City<input name="addressCity" placeholder="e.g. Brampton"></label><label>Province<input value="Ontario" disabled></label><label>Postal code<input name="addressPostal" placeholder="e.g. L6V 1A6" autocapitalize="characters"></label></div><input name="address" type="hidden"><button class="primary wide" type="submit">Save location</button></form></section>
     <section class="section-heading"><div><p class="eyebrow">YOUR PLACES</p><h2>Tap for directions</h2></div></section><div id="savedLocationList" class="card-list"></div>
   </template>  <template id="job-choice-template">
     <section class="page-title"><button class="back" data-view="dashboard" aria-label="Go back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5 7.5 12l7 7M8 12h9"/></svg></button><div><p class="eyebrow">NEW JOB</p><h1>Who is this job for?</h1><p>Choose the workflow that matches the job.</p></div></section>
@@ -79,7 +79,7 @@
 
   <template id="job-form-template">
     <section class="page-title"><button class="back" data-view="job-choice" aria-label="Go back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5 7.5 12l7 7M8 12h9"/></svg></button><div><p class="eyebrow" id="jobSourceLabel"></p><h1 id="jobFormTitle">New job</h1><p id="jobFormSubtitle"></p></div></section>
-    <form id="jobForm" class="form-stack">
+    <form id="jobForm" class="form-stack" novalidate>
       <section class="form-card"><h2>Job details</h2><div class="form-grid">
         <label class="full">Work Order Number <em class="goline-only">Required for GoLime</em><input name="workOrder" placeholder="Optional for Akon Air jobs"></label>
         <label>Appointment date<input name="date" type="date"></label>
@@ -184,7 +184,7 @@
     <section class="form-card"><p class="eyebrow">ACCOUNT</p><h2>Signed-in user</h2><p id="settingsAccount" class="travel-status">Checking account...</p><button class="secondary wide" data-action="sign-out">Sign out of this device</button></section>
   </template>  <script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistration('./').then(registration=>registration?.update())}</script>
   <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-  <script defer src="field-manager.js?v=139"></script>
+  <script defer src="field-manager.js?v=140"></script>
 </body>
 </html>
 

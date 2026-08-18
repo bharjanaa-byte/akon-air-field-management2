@@ -50,7 +50,7 @@ document.addEventListener('click',e=>{
 },true);
 async function confirmDeleteJob(job){if(!confirm(`Delete ${job.workOrder||job.customer||'this job'}?`))return;if(!confirm('Final confirmation: are you sure you want to permanently delete this job?'))return;try{if(remoteReady&&isUuid(job.id)){const result=await supabase.from('jobs').delete().eq('id',job.id);if(result.error)throw result.error}jobs=jobs.filter(item=>item.id!==job.id);saveLocal();render('jobs')}catch(error){alert('This job could not be deleted from the shared workspace.');console.error('Job deletion failed:',error)}}
 document.addEventListener('click',e=>{const action=e.target.closest('[data-action]');if(action?.dataset.action!=='delete-job')return;e.preventDefault();e.stopImmediatePropagation();const job=jobs.find(item=>item.id===action.dataset.jobId);if(job)confirmDeleteJob(job)},true);
-document.addEventListener('click',e=>{const action=e.target.closest('[data-action]');if(action?.dataset.action!=='mark-paid-owed')return;e.preventDefault();e.stopImmediatePropagation();const job=jobs.find(item=>item.id===action.dataset.jobId);if(!job||job.status==='Paid')return;if(!confirm(`Mark Work Order ${job.workOrder||''} as paid?`))return;job.status='Paid';save();render('money')},true);
+document.addEventListener('click',e=>{const action=e.target.closest('[data-action]');if(action?.dataset.action!=='mark-paid-owed')return;e.preventDefault();e.stopImmediatePropagation();const job=jobs.find(item=>item.id===action.dataset.jobId);if(!job||job.status==='Paid')return;if(!confirm(`Mark Work Order ${job.workOrder||''} as paid?`))return;job.status='Paid';rememberStatusChange(job.id);rememberJobEdit(job.id);save();render('money')},true);
 document.addEventListener('click',async e=>{const action=e.target.closest('[data-action]');if(!action)return;if(action.dataset.action==='calculate-travel'){e.preventDefault();e.stopImmediatePropagation();await calculateTravel();updateTravelClaimButton();return}if(action.dataset.action==='add-travel-claim'){e.preventDefault();e.stopImmediatePropagation();const record=travelData[travelDate];if(!record||record.farthestKm===undefined)return;record.claimReady=true;saveTravel();claimStart=travelDate;claimEnd=travelDate;render('claims')}},true);
 function photoThumb(src,category,fileKey=''){const deferred=String(src).startsWith(OFFLINE_PHOTO_PREFIX)||String(src).startsWith(CLOUD_PHOTO_PREFIX);return `<span class="photo-thumb" data-file-key="${esc(fileKey)}" data-source="${esc(src)}"><img class="thumb"${deferred?'':` src="${src}"`} alt="${esc(category)}"><button type="button" class="photo-remove" data-action="delete-photo" data-category="${esc(category)}" aria-label="Remove photo" title="Remove photo">x</button></span>`}
 function refreshPhotoBox(box){const thumbs=box.querySelector('.thumbs'),items=[...thumbs.querySelectorAll('.photo-thumb')];items.forEach((item,index)=>item.querySelector('.photo-remove').dataset.photoIndex=index);box.querySelector('.count').textContent=items.length;box.classList.toggle('complete',items.length>0)}
@@ -570,6 +570,31 @@ filesView=()=>{
 window.addEventListener('click',event=>{const button=event.target.closest('.file-filter');if(!button)return;event.preventDefault();event.stopImmediatePropagation();filesTypeFilter=button.dataset.fileFilter||'all';filesView()},true);
 window.addEventListener('input',event=>{if(event.target.id!=='fileSearch')return;fileSearchQuery=event.target.value||'';filesView()},true);
 window.addEventListener('change',event=>{const id=event.target.id;if(!['fileExactDate','fileStartDate','fileEndDate'].includes(id))return;event.stopImmediatePropagation();if(id==='fileExactDate'){filesExactDate=event.target.value||'';fileStartDate='';fileEndDate=''}else{filesExactDate='';if(id==='fileStartDate')fileStartDate=event.target.value||'';else fileEndDate=event.target.value||''}filesView()},true);
+
+// Apply the same structured address entry to saved locations.
+window.addEventListener('submit',event=>{
+  if(event.target.id!=='locationForm')return;
+  event.preventDefault();event.stopImmediatePropagation();
+  const form=new FormData(event.target),label=String(form.get('label')||'').trim(),street=String(form.get('addressStreet')||'').trim(),city=String(form.get('addressCity')||'').trim(),postal=String(form.get('addressPostal')||'').trim().toUpperCase(),address=combineServiceAddress(street,city,postal)||String(form.get('address')||'').trim();
+  if(!label||!address){alert('Enter a name and at least one address detail.');return}
+  savedLocations.push({id:`place-${Date.now()}`,label,address,addressStreet:street,addressCity:city,addressPostal:postal});saveLocations();locationsView();
+},true);
+
+// Custom GoLime jobs use the existing Additional Job Photos section. This
+// handler makes that route explicit and keeps paid totals in sync immediately.
+window.addEventListener('click',event=>{
+  const action=event.target.closest('[data-action]');if(!action)return;
+  if(action.dataset.action==='photos'){
+    const job=jobs.find(item=>item.id===action.dataset.jobId);
+    if(job?.source==='goline'){event.preventDefault();event.stopImmediatePropagation();activeJobId=job.id;render('job-photos');}
+    return;
+  }
+  if(!['mark-paid','mark-paid-owed'].includes(action.dataset.action))return;
+  const job=jobs.find(item=>item.id===action.dataset.jobId);if(!job||job.status==='Paid')return;
+  event.preventDefault();event.stopImmediatePropagation();
+  job.status='Paid';rememberStatusChange(job.id);rememberJobEdit(job.id);save();
+  render('money');
+},true);
 
 // Every printable document must lead with the registered legal company name.
 // This wrapper applies the same legal masthead to completion reports, claims,
