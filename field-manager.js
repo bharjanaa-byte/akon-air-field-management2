@@ -617,3 +617,43 @@ window.open=(...args)=>{
   };
   return reportWindow;
 };
+
+// Cloud polling should keep data current without tearing down the interactive
+// Home map every few seconds.  Home stays visually stable; fresh data is kept
+// in memory and appears the next time Home is opened.
+refreshFromCloud=async()=>{
+  if(!remoteReady||cloudPushPromise)return;
+  try{
+    const before=routeMapSnapshot(),latest=await loadCloudData();
+    jobs=mergeJobsForSync(jobs,latest.jobs);
+    travelData={...latest.travel,...travelData};
+    if(pendingCloudSync&&navigator.onLine)scheduleCloudSync();
+    const changed=before!==routeMapSnapshot();
+    if(changed&&currentView!=='dashboard'&&['jobs','money','travel','extras','claims','calendar','detail','files'].includes(currentView))render(currentView);
+    if(currentView==='dashboard')updateHeader();
+    updateSharedSyncStatus();
+  }catch(error){console.error('Shared refresh failed:',error)}
+};
+
+// Do not replace a visible Leaflet map with a loading message while the user
+// is looking at Home.  A new map is created only when the Home screen itself
+// is opened again.
+const renderRouteMapWithoutFlicker=renderTodayRouteMap;
+let homeRouteMapRendering=false;
+renderTodayRouteMap=async()=>{
+  const container=document.querySelector('#todayRouteMap');
+  if(!container||homeRouteMapRendering)return;
+  if(homeStreetMap&&container.querySelector('#todayStreetMap'))return;
+  homeRouteMapRendering=true;
+  try{await renderRouteMapWithoutFlicker()}finally{homeRouteMapRendering=false}
+};
+
+// The calendar controls contain SVG arrows, so handle clicks on either the
+// button or its arrow path consistently.
+document.addEventListener('click',event=>{
+  const control=event.target.closest('#prevMonth,#nextMonth');
+  if(!control)return;
+  event.preventDefault();event.stopImmediatePropagation();
+  calendarDate.setMonth(calendarDate.getMonth()+(control.id==='prevMonth'?-1:1));
+  drawCalendar();
+},true);
