@@ -133,6 +133,7 @@
     <section class="stat-grid" id="paymentStats"></section>
     <section class="form-card import-card"><p class="eyebrow">PAID INVOICE</p><h2>Upload a GoLime invoice</h2><p>Choose the PDF from your phone or computer. The review checks work orders, job totals, extras, and travel against your saved records.</p><label class="file-picker">Choose paid GoLime invoice PDF<input id="paymentInvoiceFile" type="file" accept="application/pdf,.pdf"></label><p id="paymentInvoiceStatus" class="import-status">No invoice selected.</p></section>
     <section id="paymentReview" hidden><section class="section-heading"><div><p class="eyebrow">INVOICE REVIEW</p><h2 id="paymentReviewTitle">Invoice comparison</h2></div></section><section class="form-card"><p id="paymentReviewSummary" class="travel-status"></p><div id="paymentReviewRows" class="card-list"></div><button class="primary wide" data-action="save-payment-review" style="margin-top:14px">Save missing-payment follow-ups</button><p class="travel-note">This preview does not change job payment status until a follow-up review is saved and confirmed.</p></section></section>
+    <section class="section-heading"><div><p class="eyebrow">UPLOADED INVOICES</p><h2>Payment history</h2></div></section><div id="paymentInvoiceHistory" class="card-list"></div>
     <section class="section-heading"><div><p class="eyebrow">FOLLOW-UPS</p><h2>Missing or different payments</h2></div></section><div id="paymentFollowups" class="card-list"></div>
     <section class="form-card"><p class="eyebrow">NEXT STEPS</p><h2>Follow-up documents</h2><p class="travel-status">After reviewing the results, this area will create separate missing-job and extras/travel invoices, then prepare the GoLime follow-up email.</p><div class="form-grid"><button class="secondary" data-action="payment-missing-jobs">Missing job invoice</button><button class="secondary" data-action="payment-extras-travel">Extras & travel invoice</button></div></section>
   </template>
@@ -194,7 +195,7 @@
     <section class="form-card"><p class="eyebrow">ACCOUNT</p><h2>Signed-in user</h2><p id="settingsAccount" class="travel-status">Checking account...</p><button class="secondary wide" data-action="sign-out">Sign out of this device</button></section>
   </template>  <script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistration('./').then(registration=>registration?.update())}</script>
   <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-  <script defer src="field-manager.js?v=142"></script>
+  <script defer src="field-manager.js?v=143"></script>
 </body>
 </html>
 
