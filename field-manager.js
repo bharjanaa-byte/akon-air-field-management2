@@ -854,3 +854,10 @@ startCloudSession=async session=>{await coreStartWithLedger(session);try{await s
 // queued photos in the background. References are never removed on a failed
 // attempt; they remain visible on that device until a real upload succeeds.
 setInterval(()=>{if(remoteReady&&navigator.onLine&&queuedPhotoCount()&&!cloudPushPromise)pushCloudData().catch(error=>console.warn('Queued photo retry will continue.',error));},30000);
+
+// Make the phone’s PDF picker explicit; iOS can ignore a styled file label.
+window.addEventListener('click',event=>{const button=event.target.closest('#paymentInvoiceFileButton');if(!button)return;event.preventDefault();event.stopImmediatePropagation();document.querySelector('#paymentInvoiceFile')?.click();},true);
+const paymentSyncWithStatus=syncPaymentLedger;
+syncPaymentLedger=async()=>{try{const result=await paymentSyncWithStatus();localStorage.removeItem('akon-air-payment-ledger-error');return result;}catch(error){localStorage.setItem('akon-air-payment-ledger-error',error.message||'Payment invoice sync is not ready.');throw error;}};
+const paymentViewWithLedgerStatus=paymentsView;
+paymentsView=()=>{paymentViewWithLedgerStatus();const message=localStorage.getItem('akon-air-payment-ledger-error'),section=document.querySelector('#paymentInvoiceSection');if(message&&section&&!section.querySelector('#paymentLedgerNotice'))section.insertAdjacentHTML('afterbegin',`<section id="paymentLedgerNotice" class="form-card" style="border-color:#e6b25e"><p class="eyebrow">SHARED INVOICE SETUP NEEDED</p><p class="travel-status">${esc(message)} Run the one-time payment-ledger.sql setup in Supabase, then reopen the app. Your invoices remain safely saved on this device.</p></section>`);};
