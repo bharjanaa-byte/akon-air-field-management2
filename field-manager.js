@@ -395,7 +395,10 @@ startCloudSession=async session=>{
   supabase.channel('akon-air-live-'+Date.now()).on('postgres_changes',{event:'*',schema:'public',table:'jobs',filter:`company_id=eq.${currentMembership.company_id}`},requestCloudRefresh).on('postgres_changes',{event:'*',schema:'public',table:'job_photos',filter:`company_id=eq.${currentMembership.company_id}`},requestCloudRefresh).on('postgres_changes',{event:'*',schema:'public',table:'travel_records',filter:`company_id=eq.${currentMembership.company_id}`},requestCloudRefresh).subscribe();
   clearInterval(cloudPollTimer);cloudPollTimer=setInterval(requestCloudRefresh,5000);
   render('dashboard');
-  automaticallyCalculateTravel([...new Set(jobs.filter(job=>job.source==='goline').map(job=>job.date))],true);
+  // Never overwrite a saved route just because the app was opened.  Route
+  // providers and job ordering can change over time, so only missing or
+  // genuinely changed, unclaimed days may be calculated automatically.
+  automaticallyCalculateTravel([...new Set(jobs.filter(job=>job.source==='goline').map(job=>job.date))]);
 };
 
 updateSharedSyncStatus=(message='')=>{
@@ -724,3 +727,54 @@ window.addEventListener('click',event=>{const action=event.target.closest('[data
 const renderPaymentsScreen=paymentsView;
 paymentsView=()=>{renderPaymentsScreen();showPaymentHub(false);};
 window.addEventListener('click',event=>{const button=event.target.closest('[data-payment-hub]');if(!button)return;event.preventDefault();event.stopImmediatePropagation();paymentHubSection=button.dataset.paymentHub;showPaymentHub();},true);
+
+// Travel amounts that have been added to a claim are accounting records. They
+// must never be altered by an automatic map refresh or the bulk recalculation
+// button.  New/unclaimed days still calculate normally using the existing
+// GoLime formula.
+automaticallyCalculateTravel=async(dates,force=false)=>{
+  if(autoTravelBusy||!navigator.onLine)return;
+  const targetDates=[...new Set(dates)].filter(date=>jobs.some(job=>job.source==='goline'&&job.date===date));
+  if(!targetDates.length)return;
+  autoTravelBusy=true;
+  let changed=false;
+  try{
+    for(const date of targetDates){
+      const record=travelData[date],signature=travelJobSignature(date);
+      if(record?.manual||record?.claimReady||(!force&&record?.calculationVersion==='detour-v1'&&record?.travelSignature===signature))continue;
+      try{
+        const calculated=await calculateTravelRecord(date,record?.warehouse||travelWarehouse);
+        calculated.travelSignature=signature;
+        travelData[date]=calculated;
+        delete travelCalculationFailures[date];
+        changed=true;
+      }catch(error){
+        travelCalculationFailures[date]=error.message||'Travel could not be calculated. Check the job address.';
+        saveTravelFailures();
+      }
+    }
+    if(changed){saveTravel();saveTravelFailures();if(currentView==='dashboard')render('dashboard');}
+  }finally{autoTravelBusy=false;}
+};
+recalculateSavedTravel=async()=>{
+  const status=document.querySelector('#travelStatus'),button=document.querySelector('[data-action="recalculate-travel"]');
+  const entries=Object.entries(travelData).filter(([,record])=>record?.farthestKm!==undefined);
+  if(!entries.length){if(status)status.textContent='There are no saved travel records to recalculate.';return;}
+  if(button)button.disabled=true;
+  let updated=0,locked=0;
+  try{
+    for(const [date,record] of entries){
+      if(record.claimReady){locked++;continue;}
+      if(status)status.textContent=`Recalculating ${updated+1} unclaimed travel day${updated===0?'':'s'}…`;
+      try{
+        const refreshed=await calculateTravelRecord(date,record.warehouse||travelWarehouse);
+        refreshed.travelSignature=travelJobSignature(date);
+        travelData[date]=refreshed;
+        updated++;
+      }catch(error){console.warn('Could not recalculate travel date',date,error);}
+    }
+    saveTravel();
+    if(status)status.textContent=`Recalculated ${updated} unclaimed travel day${updated===1?'':'s'}${locked?`. ${locked} claimed day${locked===1?' was':'s were'} kept unchanged.`:'.'}`;
+    renderTravelDetails();
+  }finally{if(button)button.disabled=false;}
+};
