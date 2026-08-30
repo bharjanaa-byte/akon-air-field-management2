@@ -728,6 +728,45 @@ const renderPaymentsScreen=paymentsView;
 paymentsView=()=>{renderPaymentsScreen();showPaymentHub(false);};
 window.addEventListener('click',event=>{const button=event.target.closest('[data-payment-hub]');if(!button)return;event.preventDefault();event.stopImmediatePropagation();paymentHubSection=button.dataset.paymentHub;showPaymentHub();},true);
 
+// Approved GoLime claim: 2026-07-29 through 2026-08-06.
+// This is an immutable accounting snapshot from the PDF that Amrit approved.
+// It fixes a prior bug where a later job sync or route refresh rewrote old days.
+const APPROVED_TRAVEL_CLAIM_20260729_20260806={
+  '2026-07-29':{farthestKm:209,totalRouteKm:209,detourKm:0,lockedReimbursable:343,lockedAmount:257.25,snapshotWorkOrders:'No linked work orders',snapshotDescription:'Farthest job: 209.0 km. Base travel: 209.0 km x 2 = 418.0 km; minus 75 km = 343.0 km x $0.75 = $257.25. No extra route detour was recorded. Total travel charge: $257.25.'},
+  '2026-07-30':{farthestKm:52.5,totalRouteKm:53.7,detourKm:1.2,lockedReimbursable:30,lockedAmount:22.49,snapshotWorkOrders:'WO-167872, WO-167831 (farthest)',snapshotDescription:'Farthest job: 52.5 km. Base travel: 52.5 km x 2 = 105.0 km; minus 75 km = 30.0 km x $0.75 = $22.49. Route across 2 jobs: 53.7 km. Detour: 1.2 km. Within the 18 km allowance, so no detour charge. Total travel charge: $22.49.'},
+  '2026-07-31':{farthestKm:37.5,totalRouteKm:37.5,detourKm:0,lockedReimbursable:0,lockedAmount:0,snapshotWorkOrders:'WO-168054, WO-168032, WO-168096, WO-167984 (farthest)',snapshotDescription:'Farthest job: 37.5 km. Base travel: 37.5 km x 2 = 74.9 km; minus 75 km = 0.0 km x $0.75 = $0.00. No extra route detour was recorded. Total travel charge: $0.00.'},
+  '2026-08-01':{farthestKm:121.6,totalRouteKm:121.6,detourKm:0,lockedReimbursable:168.2,lockedAmount:126.16,snapshotWorkOrders:'WO-168223 (farthest), WO-168198',snapshotDescription:'Farthest job: 121.6 km. Base travel: 121.6 km x 2 = 243.2 km; minus 75 km = 168.2 km x $0.75 = $126.16. No extra route detour was recorded. Total travel charge: $126.16.'},
+  '2026-08-02':{farthestKm:53,totalRouteKm:110.4,detourKm:57.3,lockedReimbursable:88.4,lockedAmount:66.30,snapshotWorkOrders:'WO-168221, WO-168227 (farthest), WO-168306',snapshotDescription:'Farthest job: 53.0 km. Base travel: 53.0 km x 2 = 106.1 km; minus 75 km = 31.1 km x $0.75 = $23.31. Route across 3 jobs: 110.4 km. Detour: 57.3 km. Over 18 km, so the full 57.3 km detour adds $42.99. Total travel charge: $66.30.'},
+  '2026-08-03':{farthestKm:49.4,totalRouteKm:49.4,detourKm:0,lockedReimbursable:23.8,lockedAmount:17.81,snapshotWorkOrders:'WO-168336, WO-168358 (farthest)',snapshotDescription:'Farthest job: 49.4 km. Base travel: 49.4 km x 2 = 98.8 km; minus 75 km = 23.8 km x $0.75 = $17.81. No extra route detour was recorded. Total travel charge: $17.81.'},
+  '2026-08-04':{farthestKm:14.4,totalRouteKm:14.4,detourKm:0,lockedReimbursable:0,lockedAmount:0,snapshotWorkOrders:'WO-168397 (farthest)',snapshotDescription:'Farthest job: 14.4 km. Base travel: 14.4 km x 2 = 28.8 km; minus 75 km = 0.0 km x $0.75 = $0.00. No extra route detour was recorded. Total travel charge: $0.00.'},
+  '2026-08-05':{farthestKm:98.5,totalRouteKm:98.5,detourKm:0,lockedReimbursable:122.1,lockedAmount:91.57,snapshotWorkOrders:'WO-168388, WO-167826 (farthest)',snapshotDescription:'Farthest job: 98.5 km. Base travel: 98.5 km x 2 = 197.1 km; minus 75 km = 122.1 km x $0.75 = $91.57. No extra route detour was recorded. Total travel charge: $91.57.'},
+  '2026-08-06':{farthestKm:33.5,totalRouteKm:35.2,detourKm:1.7,lockedReimbursable:0,lockedAmount:0,snapshotWorkOrders:'WO-168475, WO-168193, 90 Woodmount Avenue (farthest), WO-168579',snapshotDescription:'Farthest job: 33.5 km. Base travel: 33.5 km x 2 = 67.1 km; minus 75 km = 0.0 km x $0.75 = $0.00. Route across 4 jobs: 35.2 km. Detour: 1.7 km. Within the 18 km allowance, so no detour charge. Total travel charge: $0.00.'}
+};
+const APPROVED_CLAIM_EXTRAS_20260729_20260806=[
+  {job:{date:'2026-08-05',workOrder:'WO-167826'},extra:{description:'Installed breaker',amount:75}},
+  {job:{date:'2026-08-05',workOrder:'WO-167826'},extra:{description:'Elevator not working',amount:100}},
+  {job:{date:'2026-08-02',workOrder:'WO-168306'},extra:{description:'Installed a new 20amps breaker',amount:75}},
+  {job:{date:'2026-08-01',workOrder:'WO-168223'},extra:{description:'Had to take out the whole return ductwork to get the tank in and out',amount:100}},
+  {job:{date:'2026-07-31',workOrder:'WO-167984'},extra:{description:'Tank relocation',amount:100}}
+];
+const originalTravelPay=travelPay;
+travelPay=input=>{const calculated=originalTravelPay(input);return input&&typeof input==='object'&&Number.isFinite(Number(input.lockedAmount))?{...calculated,reimbursable:Number(input.lockedReimbursable??calculated.reimbursable),amount:Number(input.lockedAmount)}:calculated;};
+const originalTravelDescription=travelCalculationDescription;
+travelCalculationDescription=record=>record?.snapshotDescription||originalTravelDescription(record);
+const originalTravelWorkOrders=travelClaimWorkOrders;
+travelClaimWorkOrders=record=>record?.snapshotWorkOrders||originalTravelWorkOrders(record);
+const originalClaimData=claimData;
+claimData=()=>{const data=originalClaimData();if(data.start!=='2026-07-29'||data.end!=='2026-08-06')return data;const travel=Object.entries(APPROVED_TRAVEL_CLAIM_20260729_20260806).map(([date,record])=>({date,record,calc:travelPay(record)}));const travelTotal=581.59,extrasTotal=450,subtotal=travelTotal+extrasTotal;return {...data,travel,extras:APPROVED_CLAIM_EXTRAS_20260729_20260806,travelTotal,extrasTotal,subtotal,hst:hst(subtotal),totalWithHst:subtotal+hst(subtotal)};};
+const travelRestoreKey='akon-air-approved-travel-20260729-20260806-v1';
+if(!localStorage.getItem(travelRestoreKey)){
+  for(const [date,snapshot] of Object.entries(APPROVED_TRAVEL_CLAIM_20260729_20260806))travelData[date]={warehouse:travelWarehouse,routes:[],...snapshot,claimReady:true,manual:true,calculationVersion:'approved-claim-v1',updatedAt:new Date().toISOString()};
+  localStorage.setItem(travelRestoreKey,'1');
+  saveTravel();
+}
+// Generating a claim seals those daily route figures. Subsequent changes to
+// jobs, addresses, schedules, or map data cannot rewrite a submitted claim.
+document.addEventListener('click',event=>{if(!event.target.closest('[data-action="claim-pdf"]'))return;setTimeout(()=>{const start=claimStart<=claimEnd?claimStart:claimEnd,end=claimStart<=claimEnd?claimEnd:claimStart;for(const [date,record] of Object.entries(travelData))if(date>=start&&date<=end&&record?.farthestKm!==undefined){record.claimReady=true;record.manual=true;}saveTravel();},0);},true);
+
 // Travel amounts that have been added to a claim are accounting records. They
 // must never be altered by an automatic map refresh or the bulk recalculation
 // button.  New/unclaimed days still calculate normally using the existing
