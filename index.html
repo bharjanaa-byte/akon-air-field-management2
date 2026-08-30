@@ -56,7 +56,7 @@
   </template>
 
   <template id="dashboard-template">
-    <section class="hero"><img class="hero-logo" src="akon-air-mark.png" alt="Akon Air"><span class="hero-tagline">Comfort Feels Like Home</span><div class="hero-content"><p class="eyebrow">FIELD OPERATIONS</p><h1>Good day, Amrit & Karan.</h1><p>Keep jobs, proof of completion, and payments in one place.</p></div><div class="hero-actions"><button class="primary wide" data-action="new-job">Create new job</button><button class="hero-secondary" data-view="settings">Settings & workspace</button></div></section>
+    <section class="hero"><img class="hero-logo" src="akon-air-mark.png" alt="Akon Air"><span class="hero-tagline">Comfort Feels Like Home</span><div class="hero-content"><p class="eyebrow">FIELD OPERATIONS</p><h1>Good day, Amrit & Karan.</h1><p>Keep jobs, proof of completion, and payments in one place.</p></div><div class="hero-actions"><button class="primary wide" data-action="new-job">Create new job</button><button class="hero-secondary" data-view="pickup">Pick up equipment</button><button class="hero-secondary" data-view="settings">Settings & workspace</button></div></section>
     <section class="stat-grid" id="statGrid"></section><div id="homeTravelSection"></div>
     <section class="section-heading"><div><p class="eyebrow">TODAY'S ROUTE</p><h2>Warehouse to scheduled jobs</h2></div><button class="secondary small" data-view="travel">Travel</button></section>
     <section id="todayRouteMap" class="today-route-card"><p class="travel-status">Preparing today’s route…</p></section>
@@ -64,6 +64,15 @@
     <section class="stat-grid" id="homeOwedBreakdown"></section><section class="home-hst" id="homeOwedTax"></section>
     <section class="section-heading" style="margin-top:28px"><div><p class="eyebrow">SAVED LOCATIONS</p><h2>Quick directions</h2></div><button class="secondary small" data-view="locations">Manage</button></section><div id="homeLocations" class="card-list"></div>
     
+  </template>
+
+  <template id="pickup-template">
+    <section class="page-title"><button class="back" data-view="dashboard" aria-label="Go back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5 7.5 12l7 7M8 12h9"/></svg></button><div><p class="eyebrow">SAME-DAY EQUIPMENT</p><h1>Pick up equipment</h1><p>Record a warehouse or supplier stop and link it to the work orders it supports.</p></div></section>
+    <form id="pickupForm" class="form-stack">
+      <section class="form-card"><div class="form-grid"><label>Pickup date<input name="date" type="date" required></label><label>Pickup time<input name="time" type="time"></label><label class="full">Pickup address<input name="address" required placeholder="Warehouse, supplier, or equipment location"></label><label class="full">What are you picking up?<input name="description" required placeholder="e.g. 50-gallon water heater / tank"></label></div></section>
+      <section class="form-card"><h2>Link to today’s GoLime work order(s)</h2><p class="travel-status">The pickup will be included as a route stop. If it creates more than 18 km of detour, the app adds that distance at $0.75/km.</p><div id="pickupWorkOrders" class="card-list"></div></section>
+      <button class="primary wide" type="submit">Save pickup & recalculate travel</button>
+    </form>
   </template>
 
   <template id="locations-template">
