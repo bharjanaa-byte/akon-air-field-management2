@@ -82,7 +82,9 @@ const CHECKLISTS={
 };
 function checklistFor(type){if(/Electric Water/.test(type))return CHECKLISTS.electric;if(/Air Conditioner/.test(type))return CHECKLISTS.ac;if(/Water Heater|Tankless|Furnace|Air Handler/.test(type))return CHECKLISTS.water;return CHECKLISTS.none}
 const dateISO=d=>{const date=new Date(d);return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`};
-const today=dateISO(new Date());
+// "Today" can be set from Settings for planning and reviewing a past or
+// future dispatch. When no planning date is chosen, it remains the real date.
+let today=localStorage.getItem('akon-air-system-date')||dateISO(new Date());
 const demoJobs=[
  {id:'demo-1',source:'goline',workOrder:'GL-48291',date:today,status:'Completed',workType:'Furnace / Air Handler',customer:'Jordan Miller',phone:'416-555-0184',address:'17 Cedar Lane, Toronto',email:'',equipment:'Lennox EL296V',notes:'Completion package ready for upload.',extras:[{description:'Gas line extension',amount:150}],photos:{}},
  {id:'demo-2',source:'goline',workOrder:'GL-48276',date:dateISO(Date.now()-86400000*2),status:'Submitted to GoLime',workType:'Tankless (Replacement)',customer:'Sophia Chen',phone:'416-555-0193',address:'82 Parkview Ave, Markham',email:'',equipment:'Rinnai RU199iN',notes:'Submitted and awaiting payment.',extras:[{description:'Condensate pump',amount:85}],photos:{}},
@@ -120,7 +122,7 @@ const jobBaseCharge=j=>j.source==='goline'?(j.workType==='Custom / Other'?Number
 const jobAdditionalCharge=j=>(j.additionalWork||[]).reduce((sum,item)=>sum+Number(RATES[item.workType]||0),0);const total=j=>jobBaseCharge(j)+jobAdditionalCharge(j)+(j.extras||[]).reduce((s,x)=>s+Number(x.amount||0),0);
 const hst=n=>(Number(n)||0)*.13;
 const timeWindow=j=>{const times=[j.appointmentStart||'',j.appointmentEnd||'',j.notes||''].join(' ').match(/\d{1,2}:\d{2}\s+(?:AM|PM)/gi)||[],start=times[0],end=times[1];return start?(end?`${start} - ${end}`:start):''};
-const scheduleOrder=(a,b)=>new Date(a.appointmentStart||a.notes?.match(/Scheduled\s+(.+?)(?:\s+to\s+|\.)/i)?.[1]||`${a.date}T12:00:00`)-new Date(b.appointmentStart||b.notes?.match(/Scheduled\s+(.+?)(?:\s+to\s+|\.)/i)?.[1]||`${b.date}T12:00:00`);
+let scheduleOrder=(a,b)=>new Date(a.appointmentStart||a.notes?.match(/Scheduled\s+(.+?)(?:\s+to\s+|\.)/i)?.[1]||`${a.date}T12:00:00`)-new Date(b.appointmentStart||b.notes?.match(/Scheduled\s+(.+?)(?:\s+to\s+|\.)/i)?.[1]||`${b.date}T12:00:00`);
 const saveLocal=()=>localStorage.setItem('akon-air-jobs',JSON.stringify(jobs));
 let save=()=>{saveLocal();setPendingCloudSync(true);if(remoteReady&&navigator.onLine)scheduleCloudSync()};
 let saveTravel=()=>{localStorage.setItem('akon-air-travel',JSON.stringify(travelData));setPendingCloudSync(true);if(remoteReady&&navigator.onLine)scheduleCloudSync()};
@@ -300,7 +302,7 @@ refreshFromCloud=async()=>{if(!remoteReady||cloudPushPromise)return;try{const be
 // Preserve every work order during cloud reconciliation.  Earlier duplicate
 // Remove legacy workers once. Earlier app versions registered three competing
 // workers, which could keep an outdated mapping script alive on a phone.
-if('serviceWorker' in navigator&&!localStorage.getItem('akon-air-worker-reset-v129')){navigator.serviceWorker.getRegistrations().then(registrations=>Promise.all(registrations.map(registration=>registration.unregister()))).then(()=>{localStorage.setItem('akon-air-worker-reset-v129','1');return navigator.serviceWorker.register('./service-worker.js?v=129')}).catch(error=>console.warn('App update check failed:',error))}
+if('serviceWorker' in navigator&&!localStorage.getItem('akon-air-worker-reset-v131')){navigator.serviceWorker.getRegistrations().then(registrations=>Promise.all(registrations.map(registration=>registration.unregister()))).then(()=>{localStorage.setItem('akon-air-worker-reset-v131','1');return navigator.serviceWorker.register('./service-worker.js?v=131')}).catch(error=>console.warn('App update check failed:',error))}
 
 // Preserve every work order during cloud reconciliation.  Earlier duplicate
 // cleanup could discard a locally restored card when a stale cloud copy had
@@ -865,3 +867,222 @@ paymentsView=()=>{paymentViewWithLedgerStatus();const message=localStorage.getIt
 // Use explicit element lookups for the pickup form. Some mobile browsers do
 // not expose a field named "date" through form.elements.date.
 pickupView=()=>{const screen=document.querySelector('#pickup-template');if(!screen){app.innerHTML='<section class="form-card"><h1>Pick up equipment</h1><p>The pickup screen is unavailable. Refresh the app once, then try again.</p><button class="primary wide" data-view="dashboard">Back to Home</button></section>';return;}app.append(screen.content.cloneNode(true));const form=document.querySelector('#pickupForm'),dateField=form?.querySelector('[name="date"]');if(!form||!dateField)return;dateField.value=travelDate||today;const draw=()=>{const day=dateField.value||today,available=jobs.filter(job=>job.source==='goline'&&job.date===day&&job.workType!=='Meeting'),target=document.querySelector('#pickupWorkOrders');if(!target)return;target.innerHTML=available.length?available.map(job=>`<label class="route-row" style="cursor:pointer"><span><input type="checkbox" name="workOrder" value="${esc(job.id)}"> <strong>${esc(job.workOrder||'No work order')}</strong><br><small>${esc(job.address||'Address not available')}</small></span></label>`).join(''):'<p class="travel-status">No GoLime jobs are scheduled for this date yet. Import or create the job first.</p>';};dateField.addEventListener('change',draw);draw();};
+
+// Route planning: a saved order takes priority over appointment time.  This
+// makes the numbered home map, route legs, farthest job and detour calculation
+// use exactly the same sequence the crew selects in Travel.
+const appointmentScheduleOrder=scheduleOrder;
+const orderedJobIds=date=>Array.isArray(travelData[date]?.routeOrder)?travelData[date].routeOrder:[];
+const orderedDayJobs=date=>{
+  const ids=orderedJobIds(date),positions=new Map(ids.map((id,index)=>[id,index]));
+  return jobs.filter(job=>job.source==='goline'&&job.date===date&&job.workType!=='Meeting').sort((a,b)=>{
+    const left=positions.has(a.id)?positions.get(a.id):Number.MAX_SAFE_INTEGER;
+    const right=positions.has(b.id)?positions.get(b.id):Number.MAX_SAFE_INTEGER;
+    return left!==right?left-right:appointmentScheduleOrder(a,b);
+  });
+};
+scheduleOrder=(a,b)=>{
+  if(a?.date&&a.date===b?.date){
+    const ids=orderedJobIds(a.date),positions=new Map(ids.map((id,index)=>[id,index]));
+    const left=positions.has(a.id)?positions.get(a.id):Number.MAX_SAFE_INTEGER;
+    const right=positions.has(b.id)?positions.get(b.id):Number.MAX_SAFE_INTEGER;
+    if(left!==right)return left-right;
+  }
+  return appointmentScheduleOrder(a,b);
+};
+
+const calculateTravelWithPickupOrder=calculateTravelRecord;
+calculateTravelRecord=async(date,warehouse)=>{
+  const existing=travelData[date]||{};
+  const routeOrder=orderedDayJobs(date).map(job=>job.id);
+  const calculated=await calculateTravelWithPickupOrder(date,warehouse);
+  return {...calculated,routeOrder,pickups:calculated.pickups||existing.pickups||[]};
+};
+
+const travelDetailsWithPickups=renderTravelDetails;
+renderTravelDetails=()=>{
+  travelDetailsWithPickups();
+  const routes=document.querySelector('#travelRoutes'),record=travelData[travelDate];
+  if(!routes)return;
+  const dayJobs=orderedDayJobs(travelDate),routeByJob=new Map((record?.routes||[]).filter(row=>row.jobId).map(row=>[row.jobId,row]));
+  if(!dayJobs.length)return;
+  const options=dayJobs.length;
+  const rows=dayJobs.map((job,index)=>{
+    const route=routeByJob.get(job.id),distance=route?.km!==undefined?`${Number(route.km).toFixed(1)} km from warehouse`:route?.error||'Not calculated';
+    return `<article class="route-row"><div><strong>Stop ${index+1}: ${esc(job.workOrder||'GoLime job')}</strong><span>${esc(job.address||'Address not available')}${timeWindow(job)?` • ${esc(timeWindow(job))}`:''}</span></div><div style="display:flex;align-items:center;gap:8px"><select class="secondary small" data-action="travel-route-order" data-job-id="${esc(job.id)}" aria-label="Route stop for ${esc(job.workOrder||'job')}">${Array.from({length:options},(_,n)=>`<option value="${n+1}" ${n===index?'selected':''}>#${n+1}</option>`).join('')}</select><span class="route-km">${distance}</span></div></article>`;
+  }).join('');
+  const pickups=(record?.pickups||[]).map(stop=>{
+    const route=(record.routes||[]).find(row=>row.pickupId===stop.id);
+    return `<article class="route-row"><div><strong>Equipment pickup: ${esc(stop.description)}</strong><span>${esc(stop.address)}</span></div><span class="route-km">${route?.legKm!==undefined?`${Number(route.legKm).toFixed(1)} km leg`:'Saved pickup'}</span></article>`;
+  }).join('');
+  routes.innerHTML=`<p class="travel-note">Set the order below to match the actual day. The route, farthest job, and detour will use this exact order after recalculation.</p>${rows}${pickups}`;
+};
+
+async function saveRouteOrder(jobId,position){
+  const record=travelData[travelDate]||{warehouse:travelWarehouse};
+  if(record.claimReady){alert('This travel day is already included in a claim and is locked.');render('travel');return;}
+  const ordered=orderedDayJobs(travelDate).map(job=>job.id).filter(id=>id!==jobId);
+  ordered.splice(Math.max(0,Math.min(ordered.length,position)),0,jobId);
+  travelData[travelDate]={...record,routeOrder:ordered,manual:false,claimReady:false,travelSignature:''};
+  saveTravel();
+  const status=document.querySelector('#travelStatus');
+  if(status)status.textContent='Updating the route in the new stop order…';
+  try{
+    travelData[travelDate]=await calculateTravelRecord(travelDate,travelWarehouse);
+    travelData[travelDate].travelSignature=travelJobSignature(travelDate);
+    saveTravel();
+    render('travel');
+  }catch(error){if(status)status.textContent='Order saved, but the route could not be recalculated yet. Check all job addresses.';console.error('Route order calculation failed:',error);}
+}
+document.addEventListener('change',event=>{
+  const select=event.target.closest('[data-action="travel-route-order"]');
+  if(!select)return;
+  event.preventDefault();
+  saveRouteOrder(select.dataset.jobId,Number(select.value)-1);
+});
+
+// The planning date only affects what the app calls “today”; it never alters
+// a stored job date or an already generated/claimed travel record.
+function validIsoDate(value){return /^\d{4}-\d{2}-\d{2}$/.test(String(value||''));}
+const updateHeaderForSystemDate=updateHeader;
+updateHeader=()=>{
+  updateHeaderForSystemDate();
+  const date=document.querySelector('#headerDate'),count=document.querySelector('#headerJobCount');
+  const planned=new Date(`${today}T12:00:00`);
+  if(date&&Number.isFinite(planned.getTime()))date.textContent=planned.toLocaleDateString('en-CA',{weekday:'short',month:'short',day:'numeric'});
+  if(count)count.textContent=`${jobs.filter(job=>job.date===today).length} job${jobs.filter(job=>job.date===today).length===1?'':'s'} today`;
+};
+const systemSettingsView=settingsView;
+settingsView=()=>{
+  systemSettingsView();
+  const input=document.querySelector('#systemDate'),status=document.querySelector('#systemDateStatus');
+  if(input)input.value=today;
+  if(status)status.textContent=`Planning view is set to ${new Date(`${today}T12:00:00`).toLocaleDateString('en-CA',{month:'long',day:'numeric',year:'numeric'})}.`;
+};
+document.addEventListener('click',event=>{
+  const action=event.target.closest('[data-action]');
+  if(!action)return;
+  if(action.dataset.action==='save-system-date'){
+    const value=document.querySelector('#systemDate')?.value;
+    if(!validIsoDate(value)){alert('Choose a valid system date first.');return;}
+    today=value;travelDate=value;selectedCalendarDay=value;calendarDate=new Date(`${value}T12:00:00`);
+    localStorage.setItem('akon-air-system-date',value);
+    render('dashboard');
+  }
+  if(action.dataset.action==='reset-system-date'){
+    const actual=dateISO(new Date());
+    today=actual;travelDate=actual;selectedCalendarDay=actual;calendarDate=new Date(`${actual}T12:00:00`);
+    localStorage.removeItem('akon-air-system-date');
+    render('dashboard');
+  }
+},true);
+
+// Persist the selected route order with the shared travel record. The normal
+// sync code predates route ordering, so this small companion update prevents
+// one device from silently losing another device’s sequence.
+const cloudTravelWithRouteOrder=pushCloudData;
+pushCloudData=async()=>{
+  const result=await cloudTravelWithRouteOrder();
+  if(remoteReady&&currentMembership&&navigator.onLine){
+    for(const [date,record] of Object.entries(travelData)){
+      if(!Array.isArray(record?.routeOrder)||!record.routeOrder.length)continue;
+      const current=await supabase.from('travel_records').select('route_details').eq('company_id',currentMembership.company_id).eq('travel_date',date).maybeSingle();
+      if(current.error)throw current.error;
+      const details=Array.isArray(current.data?.route_details)?{routes:current.data.route_details}:{...(current.data?.route_details||{})};
+      const write=await supabase.from('travel_records').update({route_details:{...details,routeOrder:record.routeOrder}}).eq('company_id',currentMembership.company_id).eq('travel_date',date);
+      if(write.error)throw write.error;
+    }
+  }
+  return result;
+};
+const cloudLoadWithRouteOrder=loadCloudData;
+loadCloudData=async()=>{
+  const result=await cloudLoadWithRouteOrder();
+  if(remoteReady&&currentMembership){
+    const rows=await supabase.from('travel_records').select('travel_date,route_details').eq('company_id',currentMembership.company_id);
+    if(!rows.error)for(const row of rows.data||[]){const details=Array.isArray(row.route_details)?{}:row.route_details||{};if(Array.isArray(details.routeOrder)&&result.travel[row.travel_date])result.travel[row.travel_date].routeOrder=details.routeOrder;}
+  }
+  return result;
+};
+
+// Calculate against installation jobs only. Meetings are dispatch reminders,
+// not paid route stops. The saved route order is used verbatim, which avoids a
+// later address lookup changing the crew's 1 → 2 → 3 sequence.
+calculateTravelRecord=async(date,warehouse)=>{
+  const existing=travelData[date]||{},dayJobs=orderedDayJobs(date);
+  if(!dayJobs.length)throw new Error('No GoLime installation jobs are scheduled for this date.');
+  const origin=await geocodeAddress(warehouse),routes=[],mapped=[];
+  for(const job of dayJobs){
+    if(!String(job.address||'').trim()){routes.push({jobId:job.id,error:'No address'});continue;}
+    try{
+      const destination=await geocodeAddress(job.address),directKm=await routeDistanceKm(origin,destination);
+      mapped.push({job,destination,directKm});
+      routes.push({jobId:job.id,km:directKm,address:job.address});
+    }catch(error){routes.push({jobId:job.id,error:'Could not map'});}
+  }
+  if(!mapped.length)throw new Error('No job addresses could be mapped. Add the missing service address, then try again.');
+  let previous=origin,totalRouteKm=0;
+  for(const item of mapped){
+    const legKm=await routeDistanceKm(previous,item.destination),route=routes.find(row=>row.jobId===item.job.id);
+    route.legKm=legKm;totalRouteKm+=legKm;previous=item.destination;
+  }
+  const pickups=(existing.pickups||[]).filter(stop=>String(stop?.address||'').trim());
+  for(const pickup of pickups){
+    try{
+      const destination=await geocodeAddress(pickup.address),legKm=await routeDistanceKm(previous,destination),directKm=await routeDistanceKm(origin,destination);
+      routes.push({pickupId:pickup.id,label:pickup.description,address:pickup.address,workOrderIds:pickup.workOrderIds||[],km:directKm,legKm});
+      totalRouteKm+=legKm;previous=destination;
+    }catch(error){routes.push({pickupId:pickup.id,label:pickup.description,error:'Could not map pickup'});}
+  }
+  const farthest=Math.max(...mapped.map(item=>item.directKm));
+  return {warehouse,routes,routeOrder:dayJobs.map(job=>job.id),pickups,farthestKm:farthest,totalRouteKm,detourKm:Math.max(0,totalRouteKm-farthest),manual:false,calculationVersion:'ordered-route-v2',updatedAt:new Date().toISOString()};
+};
+
+// Home uses the same sequence and numbering as Travel, including when the
+// system date is set to a different workday for planning or review.
+buildTodayRoute=async()=>{
+  const candidates=orderedDayJobs(today).filter(job=>!['Completed','Submitted to GoLime','Paid'].includes(job.status));
+  if(!candidates.length)return {stops:[],missing:[]};
+  let origin;
+  try{origin=await homeRouteGeocode(travelWarehouse||WAREHOUSE_DEFAULT);}catch(error){origin={lat:43.802357,lon:-79.490484};}
+  const stops=[],missing=[];let prior=origin;
+  for(const job of candidates){
+    try{
+      const point=await homeRouteGeocode(job.address),legKm=await routeDistanceKm(prior,point).catch(()=>straightKm(prior,point));
+      stops.push({job,point,legKm});prior=point;
+    }catch(error){missing.push(job);}
+  }
+  return {origin,stops,missing};
+};
+
+// Relative job and payment filters also use the planning date, rather than
+// silently reverting to the phone's real date.
+owedDateMatches=job=>{
+  if(owedExactDate)return job.date===owedExactDate;
+  if(owedDateFilter==='all')return true;
+  const days=Number(owedDateFilter),start=new Date(`${today}T00:00:00`),end=new Date(start),date=new Date(job.date+'T12:00:00');
+  end.setDate(end.getDate()+days-1);
+  return date>=start&&date<=end;
+};
+renderFilteredJobs=()=>{
+  const query=jobSearchQuery.trim().toLowerCase(),list=jobs.slice().filter(job=>{
+    if(query)return [job.address,job.customer,job.workOrder].some(value=>String(value||'').toLowerCase().includes(query));
+    if(jobSourceFilter!=='all'&&job.source!==jobSourceFilter)return false;
+    if(jobStatusFilter==='assigned'&&job.status!=='Assigned')return false;
+    if(jobStatusFilter==='active'&&!jobIsActive(job))return false;
+    if(jobStatusFilter==='completed'&&job.status!=='Completed')return false;
+    if(jobStatusFilter==='submitted'&&job.status!=='Submitted to GoLime')return false;
+    if(jobStatusFilter==='paid'&&job.status!=='Paid')return false;
+    if(jobStatusFilter==='history'&&!['Completed','Submitted to GoLime','Paid'].includes(job.status))return false;
+    if(jobExactDate&&job.date!==jobExactDate)return false;
+    if(!jobExactDate&&jobDateFilter!=='all'){
+      const days=Number(jobDateFilter),start=new Date(`${today}T00:00:00`),end=new Date(start),jobDate=new Date(job.date+'T12:00:00');
+      end.setDate(end.getDate()+days-1);
+      if(jobDate<start||jobDate>end)return false;
+    }
+    return true;
+  }).sort((a,b)=>b.date.localeCompare(a.date)||scheduleOrder(a,b));
+  const container=document.querySelector('#allJobs');
+  if(container)container.innerHTML=list.map(jobCard).join('')||empty(query?'No jobs match that address search.':'No jobs match these filters.');
+  enableJobDeletion();
+};

@@ -200,13 +200,14 @@
   </template>
   <template id="settings-template">
     <section class="page-title"><div><p class="eyebrow">WORKSPACE</p><h1>Settings</h1><p>Dispatch, shared devices, and your account in one place.</p></div></section>
+    <section class="form-card"><p class="eyebrow">PLANNING DATE</p><h2>System date</h2><p class="travel-status">Use a date here to review that day as “today” across Home, Travel, Calendar, and job filters. It does not change the actual dates saved on any jobs.</p><div class="form-grid"><label>System date<input id="systemDate" type="date"></label><div style="display:flex;align-items:end;gap:9px"><button class="primary" type="button" data-action="save-system-date">Use this date</button><button class="secondary" type="button" data-action="reset-system-date">Use real date</button></div></div><p id="systemDateStatus" class="travel-status"></p></section>
     <section class="form-card"><p class="eyebrow">MASTER DISPATCH</p><h2>Import jobs</h2><p class="travel-status">Add a GoLime Master Dispatch PDF whenever you need to import jobs manually.</p><button class="primary wide" data-action="import-dispatch">Import Master Dispatch</button></section>
     <section class="form-card"><p class="eyebrow">MASTER DISPATCH EMAIL</p><h2>Check Gmail manually</h2><p id="emailDispatchStatus">Checking Gmail setup...</p><button class="secondary wide" data-action="connect-gmail">Connect Gmail</button><button class="primary wide" data-action="check-dispatch" hidden>Check Gmail for Master Dispatch</button></section>
     <section class="form-card"><p class="eyebrow">SHARED WORKSPACE</p><h2>Device sync</h2><p id="sharedSyncStatus">Checking shared-device sync...</p><button class="primary wide" data-action="sync-now">Sync all devices now</button></section>
     <section class="form-card"><p class="eyebrow">ACCOUNT</p><h2>Signed-in user</h2><p id="settingsAccount" class="travel-status">Checking account...</p><button class="secondary wide" data-action="sign-out">Sign out of this device</button></section>
   </template>  <script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistration('./').then(registration=>registration?.update())}</script>
   <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-  <script defer src="field-manager.js?v=147"></script>
+  <script defer src="field-manager.js?v=148"></script>
 </body>
 </html>
 
