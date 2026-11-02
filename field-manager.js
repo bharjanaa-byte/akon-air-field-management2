@@ -663,6 +663,10 @@ document.addEventListener('click',event=>{
   drawCalendar();
 },true);
 
+// Existing buttons already call calculateTravel. Point that established action
+// at the base-aware version so older click handlers cannot bypass it.
+calculateTravel=calculateTravelFromSelectedBase;
+
 // GoLime Payments is intentionally review-first.  Uploading an invoice never
 // changes an existing job until the comparison has been reviewed.
 let paymentInvoices=JSON.parse(localStorage.getItem('akon-air-payment-invoices')||'[]');
@@ -1053,6 +1057,130 @@ buildTodayRoute=async()=>{
     }catch(error){missing.push(job);}
   }
   return {origin,stops,missing};
+};
+
+// Out-of-town travel bases are used only for the overnight portion of a trip.
+// The first day remains warehouse based. Once a daily route is calculated, its
+// start address is stored with that daily travel record and therefore shared.
+let overnightTravelBases=JSON.parse(localStorage.getItem('akon-air-overnight-travel-bases')||'[]');
+const saveOvernightTravelBases=()=>localStorage.setItem('akon-air-overnight-travel-bases',JSON.stringify(overnightTravelBases));
+const isoBetween=(date,start,end)=>date>=start&&date<=end;
+const overnightBaseForDate=date=>overnightTravelBases.filter(base=>base?.address&&base?.start&&base?.end&&isoBetween(date,base.start,base.end)).sort((a,b)=>String(b.updatedAt||'').localeCompare(String(a.updatedAt||'')))[0]||null;
+const routeBaseForDate=date=>overnightBaseForDate(date)?.address||travelData[date]?.warehouse||travelWarehouse;
+
+const travelViewWithOvernightBase=travelView;
+travelView=()=>{
+  travelViewWithOvernightBase();
+  const selected=overnightBaseForDate(travelDate),start=document.querySelector('#overnightStart'),end=document.querySelector('#overnightEnd'),address=document.querySelector('#overnightAddress'),status=document.querySelector('#overnightBaseStatus');
+  if(start)start.value=selected?.start||travelDate;
+  if(end)end.value=selected?.end||travelDate;
+  if(address)address.value=selected?.address||'';
+  const used=routeBaseForDate(travelDate),usingHotel=used!==travelWarehouse;
+  if(status)status.textContent=usingHotel?`This date starts from: ${used}`:'This date starts from the GoLime warehouse.';
+};
+
+async function calculateTravelFromSelectedBase(){
+  const status=document.querySelector('#travelStatus'),button=document.querySelector('[data-action="calculate-travel"]'),record=travelData[travelDate]||{};
+  const base=routeBaseForDate(travelDate);
+  if(!base){if(status)status.textContent='Enter the GoLime warehouse or an overnight base address first.';return;}
+  if(record.claimReady){if(status)status.textContent='This date is already in a submitted claim and is locked.';return;}
+  if(button)button.disabled=true;
+  if(status)status.textContent=`Measuring the route from ${base}…`;
+  try{
+    const calculated=await calculateTravelRecord(travelDate,base);
+    const overnight=overnightBaseForDate(travelDate);
+    travelData[travelDate]={...calculated,overnightBase:overnight?{address:overnight.address,start:overnight.start,end:overnight.end}:null};
+    travelData[travelDate].travelSignature=travelJobSignature(travelDate);
+    saveTravel();
+    if(status)status.textContent=`Travel calculated from ${base}.`;
+    render('travel');
+  }catch(error){if(status)status.textContent=error.message||'Could not calculate this route. Check job addresses and try again.';console.error('Overnight-base travel calculation failed:',error);}
+  finally{if(button)button.disabled=false;}
+}
+
+document.addEventListener('click',event=>{
+  const action=event.target.closest('[data-action]');
+  if(!action)return;
+  if(action.dataset.action==='save-overnight-base'){
+    event.preventDefault();
+    const start=document.querySelector('#overnightStart')?.value,end=document.querySelector('#overnightEnd')?.value,address=document.querySelector('#overnightAddress')?.value.trim();
+    if(!start||!end||!address||end<start){alert('Enter a hotel address and a valid first and last hotel day.');return;}
+    overnightTravelBases=overnightTravelBases.filter(base=>!(base.start===start&&base.end===end));
+    overnightTravelBases.push({id:`stay-${Date.now()}`,start,end,address,updatedAt:new Date().toISOString()});
+    saveOvernightTravelBases();
+    const status=document.querySelector('#overnightBaseStatus');
+    if(status)status.textContent=`Hotel base saved for ${start} through ${end}. Calculate each affected day to store its route.`;
+  }
+  if(action.dataset.action==='calculate-travel'){
+    event.preventDefault();event.stopImmediatePropagation();
+    calculateTravelFromSelectedBase();
+  }
+},true);
+
+// The home map must use the selected day’s stored hotel base as well; otherwise
+// it would still draw the map from the warehouse after a hotel-day calculation.
+buildTodayRoute=async()=>{
+  const candidates=orderedDayJobs(today).filter(job=>!['Completed','Submitted to GoLime','Paid'].includes(job.status));
+  if(!candidates.length)return {stops:[],missing:[]};
+  const base=routeBaseForDate(today);let origin;
+  try{origin=await homeRouteGeocode(base);}catch(error){origin={lat:43.802357,lon:-79.490484};}
+  const stops=[],missing=[];let prior=origin;
+  for(const job of candidates){
+    try{const point=await homeRouteGeocode(job.address),legKm=await routeDistanceKm(prior,point).catch(()=>straightKm(prior,point));stops.push({job,point,legKm});prior=point;}catch(error){missing.push(job);}
+  }
+  return {origin,stops,missing,base};
+};
+
+// A workspace-wide photo library reuses the safe per-job photo records. It
+// only displays and downloads them; it never changes or removes a photo.
+let photoLibraryDate='',photoLibrarySearch='';
+function photoLibraryEntries(){
+  const query=photoLibrarySearch.trim().toLowerCase();
+  return jobs.flatMap(job=>jobPhotoEntries(job).map(entry=>({...entry,job}))).filter(entry=>{
+    if(photoLibraryDate&&entry.job.date!==photoLibraryDate)return false;
+    if(query&&![(entry.job.workOrder||''),(entry.job.address||''),(entry.job.customer||''),entry.category].some(value=>String(value).toLowerCase().includes(query)))return false;
+    return true;
+  }).sort((a,b)=>String(b.job.date||'').localeCompare(String(a.job.date||'')));
+}
+function photoLibraryView(){
+  app.append(template('photo-library-template'));
+  const date=document.querySelector('#libraryPhotoDate'),search=document.querySelector('#libraryPhotoSearch');
+  if(date)date.value=photoLibraryDate;if(search)search.value=photoLibrarySearch;
+  const entries=photoLibraryEntries(),target=document.querySelector('#photoLibraryGrid'),status=document.querySelector('#photoLibraryStatus');
+  if(status)status.textContent=`${entries.length} saved photo${entries.length===1?'':'s'} match your filters.`;
+  target.innerHTML=entries.map((entry,index)=>`<article class="photo-gallery-entry"><button type="button" class="photo-library-preview" data-action="open-library-photo" data-photo-index="${index}" style="border:0;background:transparent;padding:0;cursor:zoom-in"><span class="photo-thumb" data-source="${esc(entry.source)}"><img class="thumb" alt="${esc(entry.category)}" style="width:76px;height:76px;object-fit:cover;border-radius:10px;background:#eef4f7"></span></button><div style="flex:1;min-width:0"><p class="eyebrow">${esc(entry.category)}</p><h2 style="font-size:16px">${esc(entry.job.workOrder||'No work order')}</h2><p>${esc(entry.job.date||'Date unavailable')} • ${esc(entry.job.address||'Address unavailable')}</p></div><button class="secondary small" data-action="open-library-photo" data-photo-index="${index}">View</button></article>`).join('')||empty('No saved photos match these filters.');
+  hydratePhotoPreviews(target).catch(error=>console.warn('Photo library preview issue:',error));
+}
+const baseRenderWithPhotoLibrary=baseRender;
+baseRender=(view='dashboard')=>{if(view==='photo-library'){activePhotoJobId=null;app.innerHTML='';const nav=document.querySelector('.bottom-nav'),topbar=document.querySelector('.topbar');if(nav)nav.hidden=false;if(topbar)topbar.hidden=false;setNav(view);updateHeader();return photoLibraryView();}return baseRenderWithPhotoLibrary(view);};
+document.addEventListener('input',event=>{if(event.target.id==='libraryPhotoSearch'){photoLibrarySearch=event.target.value||'';photoLibraryView();}},true);
+document.addEventListener('change',event=>{if(event.target.id==='libraryPhotoDate'){photoLibraryDate=event.target.value||'';photoLibraryView();}},true);
+document.addEventListener('click',event=>{
+  const action=event.target.closest('[data-action]');
+  if(action?.dataset.action==='open-library-photo'){
+    event.preventDefault();event.stopImmediatePropagation();galleryEntries=photoLibraryEntries();galleryIndex=Number(action.dataset.photoIndex)||0;
+    const dialog=document.querySelector('#photoGalleryDialog');
+    if(!dialog)return;if(typeof dialog.showModal==='function'){if(!dialog.open)dialog.showModal();}else dialog.setAttribute('open','');renderGalleryPhoto();
+  }
+  const thumb=event.target.closest('.photo-thumb .thumb');
+  if(thumb){
+    const holder=thumb.closest('.photo-thumb'),jobId=activePhotoJobId||activeJobId;
+    if(!holder||!jobId)return;event.preventDefault();event.stopImmediatePropagation();
+    openPhotoGallery(jobId,holder.closest('.photo-category')?.dataset.category||'');
+  }
+},true);
+
+// Some mobile browsers do not fully implement <dialog>. Make the existing
+// per-job viewer work there as well as on desktop browsers.
+const safeOpenPhotoGallery=openPhotoGallery;
+openPhotoGallery=async(jobId,category='')=>{
+  const dialog=document.querySelector('#photoGalleryDialog');
+  if(!dialog)return;const job=jobs.find(item=>item.id===jobId);if(!job)return;
+  galleryEntries=jobPhotoEntries(job).map(entry=>({...entry,job}));
+  if(category){const found=galleryEntries.findIndex(entry=>entry.category===category);galleryIndex=found>=0?found:0;}else galleryIndex=0;
+  if(!galleryEntries.length){alert('There are no photos to view for this job yet.');return;}
+  if(typeof dialog.showModal==='function'){if(!dialog.open)dialog.showModal();}else dialog.setAttribute('open','');
+  await renderGalleryPhoto();
 };
 
 // Relative job and payment filters also use the planning date, rather than
