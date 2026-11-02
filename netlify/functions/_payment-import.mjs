@@ -149,13 +149,17 @@ export async function importPaymentInvoices(integration) {
     }, { onConflict: 'company_id' });
     if (error) throw new Error(error.message || 'Could not save the GoLime payment invoice.');
   }
+  // Return the full shared ledger, not only entries discovered in this one
+  // request. A scheduled import can run before a phone opens the app; in that
+  // case the phone must still receive those earlier invoices immediately.
+  const sharedInvoices = imported.length ? [...imported, ...existing] : existing;
   return {
     imported: imported.length,
     checked,
     skipped,
     unreadable,
     failures,
-    invoices: imported,
+    invoices: sharedInvoices,
     message: imported.length
       ? `Imported ${imported.length} GoLime payment invoice${imported.length === 1 ? '' : 's'} from Dhara Patel. Review the matches before sending a follow-up.`
       : `No new GoLime payment invoices were saved. Checked ${checked} new email${checked === 1 ? '' : 's'}; ${unreadable} attachment${unreadable === 1 ? '' : 's'} could not be read and ${failures} email${failures === 1 ? '' : 's'} failed. Reconnect Gmail only if an error is shown.`
