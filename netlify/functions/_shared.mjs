@@ -52,7 +52,13 @@ export function parseDispatch(text) {
   // GoLime's PDF exports columns in reading order.  In that output "WO-" and
   // the numeric work-order code are often separated by the whole job row, so
   // do not assume they are adjacent.
-  const source = String(text || '').replace(/\s+/g, ' ').trim().replace(/Meeting\s*\(\s*\d+\s*\)\s+WO-\s*(\d{5,})/gi, 'WO-$1 __MEETING__ ');
+  const source = String(text || '')
+    // Older Zoho reports wrap both "Appointment" and the work-order digits.
+    // Normalize those harmless layout breaks before parsing a card.
+    .replace(/Appointmen\s+t/gi, 'Appointment')
+    .replace(/WO-\s*(\d{5,})/gi, 'WO-$1')
+    .replace(/\s+/g, ' ').trim()
+    .replace(/Meeting\s*\(\s*\d+\s*\)\s+WO-\s*(\d{5,})/gi, 'WO-$1 __MEETING__ ');
   // A dispatch may put the six-digit work order immediately after WO- or in
   // the later External Work Order Number column.  Splitting at every WO-
   // marker supports both layouts and keeps every scheduled job separate.
