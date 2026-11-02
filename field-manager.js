@@ -250,7 +250,7 @@ const repairMeetingMistake=job=>{const warehouse=/273\s+Bowes\s+Road/i.test(Stri
 for(const job of jobs){const fixed=repairMeetingMistake(job);if(fixed!==job)Object.assign(job,fixed)}
 const mergeDispatchOverrides=mergeJobsForSync;mergeJobsForSync=(localJobs=[],remoteJobs=[])=>mergeDispatchOverrides(localJobs,remoteJobs).map(job=>{const patch=dispatchCardOverrides[String(job.workOrder||'').match(/\d{5,}/)?.[0]||String(job.workOrder||'')];return repairMeetingMistake(patch?{...job,...patch}:job)});
 window.addEventListener('click',async e=>{const action=e.target.closest('[data-action="check-dispatch"]');if(!action)return;e.preventDefault();e.stopImmediatePropagation();const status=document.querySelector('#emailDispatchStatus'),label=action.textContent;action.disabled=true;if(status)status.textContent='Checking recent Master Dispatch PDFs for upcoming jobs...';try{const session=await supabase?.auth.getSession();if(!session?.data?.session)throw new Error('Please sign in first.');const response=await fetch('/.netlify/functions/check-dispatch-now',{headers:{authorization:`Bearer ${session.data.session.access_token}`}}),data=await response.json();if(!response.ok)throw new Error(data.error||'Could not check Gmail.');const workOrderKey=value=>String(value||'').match(/\d{5,}/)?.[0]||String(value||'').trim(),missing=value=>!String(value||'').trim()||/^(?:-|n\/?a|address not available)$/i.test(String(value).trim());let repaired=0;for(const incoming of data.records||[]){const key=workOrderKey(incoming.workOrder),patch={};for(const field of ['source','date','workType','customer','phone','address','equipment','notes','appointmentStart','appointmentEnd'])if(incoming[field]&&!((field==='address'||field==='phone')&&missing(incoming[field])))patch[field]=incoming[field];if(incoming.workType==='Meeting')Object.assign(patch,{workType:'Meeting',customer:'GoLime meeting',extras:[],additionalWork:[],customAmount:0});if(!Object.keys(patch).length)continue;dispatchCardOverrides[key]={...(dispatchCardOverrides[key]||{}),...patch};for(const job of jobs.filter(job=>workOrderKey(job.workOrder)===key))Object.assign(job,patch);repaired++}localStorage.setItem('akon-air-dispatch-card-overrides',JSON.stringify(dispatchCardOverrides));saveLocal();if(currentView==='jobs')renderFilteredJobs();if(currentView==='detail')detailView();if(status)status.textContent=(data.message||`Check complete: ${data.imported||0} job(s) imported.`)+(repaired?` Applied complete dispatch details to ${repaired} job${repaired===1?'':'s'} on this device.`:' No matching job details were returned.')}catch(error){if(status)status.textContent=error.message||'Could not check Gmail.';alert(error.message||'Could not check Gmail.')}finally{action.disabled=false;action.textContent=label}},true);
-if('serviceWorker' in navigator)navigator.serviceWorker.register('./service-worker-v126.js');
+if('serviceWorker' in navigator)navigator.serviceWorker.register('./service-worker-v127.js');
 
 const routeColors=['#0c72b8','#16855b','#6957a8','#c96e1a','#d14b68'];
 var homeRouteGeoCache=JSON.parse(localStorage.getItem('akon-air-home-route-geocodes')||'{}');
@@ -691,6 +691,84 @@ render=(view='dashboard')=>{
     app.innerHTML='<section class="form-card"><p class="eyebrow">PHOTO GALLERY</p><h1>Photos could not open yet</h1><p class="travel-status">Your photos remain safe. Return to Files and try again after the app finishes updating.</p><button class="primary wide" data-view="files">Back to Files</button></section>';
   }
 };
+
+// Photo gallery, grouped by job. A work order opens into its labelled photo
+// categories instead of mixing every image from every job into one long list.
+const renderBeforeGroupedPhotoGallery=render;
+let groupedGalleryJobId='';
+function galleryPhotosForJob(job){
+  const photos=[];
+  for(const [category,value] of Object.entries(job?.photos&&typeof job.photos==='object'?job.photos:{})){
+    for(const source of (Array.isArray(value)?value:[value]))if(typeof source==='string'&&source.trim())photos.push({category,source,job});
+  }
+  return photos;
+}
+function matchingGalleryJobs(){
+  const query=String(photoLibrarySearch||'').trim().toLowerCase();
+  return (Array.isArray(jobs)?jobs:[]).filter(Boolean).map(job=>({job,photos:galleryPhotosForJob(job)})).filter(({job,photos})=>{
+    if(!photos.length)return false;
+    if(photoLibraryDate&&job.date!==photoLibraryDate)return false;
+    return !query||[job.workOrder,job.address,job.customer].some(value=>String(value||'').toLowerCase().includes(query));
+  }).sort((a,b)=>String(b.job.date||'').localeCompare(String(a.job.date||'')));
+}
+function groupedPhotoGalleryView(){
+  const groups=matchingGalleryJobs();
+  app.innerHTML='<section class="page-title"><button class="back" data-view="files" aria-label="Go back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5 7.5 12l7 7M8 12h9"/></svg></button><div><p class="eyebrow">DOCUMENT CENTRE</p><h1>Photo gallery</h1><p>Open one job to browse its labelled completion photos.</p></div></section><section class="form-card"><div class="form-grid"><label>Specific date<input id="libraryPhotoDate" type="date"></label><label>Search work order or address<input id="libraryPhotoSearch" type="search" placeholder="e.g. WO-169933 or Ottawa"></label></div><p id="photoLibraryStatus" class="travel-status"></p></section><section id="photoLibraryGrid" class="card-list"></section>';
+  const date=document.querySelector('#libraryPhotoDate'),search=document.querySelector('#libraryPhotoSearch'),status=document.querySelector('#photoLibraryStatus'),grid=document.querySelector('#photoLibraryGrid');
+  if(date)date.value=photoLibraryDate;
+  if(search)search.value=photoLibrarySearch;
+  if(status)status.textContent=`${groups.length} job${groups.length===1?'':'s'} with saved photos match your filters.`;
+  if(!grid)return;
+  if(groupedGalleryJobId){
+    const group=groups.find(item=>item.job.id===groupedGalleryJobId);
+    if(group){
+      const byCategory={};for(const photo of group.photos)(byCategory[photo.category]||(byCategory[photo.category]=[])).push(photo);
+      grid.innerHTML=`<section class="form-card"><button class="secondary small" data-action="gallery-back-to-jobs">All photo jobs</button><p class="eyebrow" style="margin-top:14px">${esc(group.job.date||'Date unavailable')}</p><h2>${esc(group.job.workOrder||'No work order')}</h2><p class="travel-status">${esc(group.job.address||'Address unavailable')}</p></section>`+Object.entries(byCategory).map(([category,photos])=>`<section class="form-card"><div class="section-heading"><div><p class="eyebrow">${esc(category)}</p><h2>${photos.length} photo${photos.length===1?'':'s'}</h2></div></div><div class="thumbs">${photos.map((photo,index)=>`<button type="button" class="photo-library-preview" data-action="open-grouped-photo" data-job-id="${esc(group.job.id)}" data-category="${esc(category)}" data-photo-index="${index}" style="border:0;background:transparent;padding:0"><span class="photo-thumb" data-source="${esc(photo.source)}"><img class="thumb" alt="${esc(category)}" style="width:112px;height:112px;object-fit:cover;border-radius:12px;background:#eef4f7"></span></button>`).join('')}</div></section>`).join('');
+      hydratePhotoPreviews(grid).catch(error=>console.warn('Photo gallery previews are still loading.',error));
+      return;
+    }
+    groupedGalleryJobId='';
+  }
+  grid.innerHTML=groups.map(({job,photos})=>`<button type="button" class="photo-gallery-entry" data-action="open-gallery-job" data-job-id="${esc(job.id)}" style="width:100%;text-align:left;cursor:pointer"><span class="photo-thumb" data-source="${esc(photos[0].source)}"><img class="thumb" alt="Job photo" style="width:76px;height:76px;object-fit:cover;border-radius:10px;background:#eef4f7"></span><span style="flex:1;min-width:0"><p class="eyebrow">${esc(job.date||'Date unavailable')} • ${photos.length} photo${photos.length===1?'':'s'}</p><h2 style="font-size:16px">${esc(job.workOrder||'No work order')}</h2><p>${esc(job.address||'Address unavailable')}</p></span><span class="secondary small">Open</span></button>`).join('')||empty('No saved photos match these filters.');
+  hydratePhotoPreviews(grid).catch(error=>console.warn('Photo gallery previews are still loading.',error));
+}
+render=(view='dashboard')=>{
+  if(view!=='photo-library')return renderBeforeGroupedPhotoGallery(view);
+  activePhotoJobId=null;
+  currentView='photo-library';
+  try{groupedPhotoGalleryView();}catch(error){console.error('Grouped photo gallery failed:',error);app.innerHTML='<section class="form-card"><h1>Photo gallery could not open</h1><p class="travel-status">Your saved photos remain safe. Return to Files and try again.</p><button class="primary wide" data-view="files">Back to Files</button></section>';}
+};
+
+let fullScreenGalleryEntries=[],fullScreenGalleryIndex=0,fullScreenGalleryUrl='';
+async function showFullScreenPhoto(){
+  const entry=fullScreenGalleryEntries[fullScreenGalleryIndex],overlay=document.querySelector('#akonPhotoOverlay');
+  if(!entry||!overlay)return;
+  const image=overlay.querySelector('img'),caption=overlay.querySelector('[data-gallery-caption]');
+  if(fullScreenGalleryUrl){URL.revokeObjectURL(fullScreenGalleryUrl);fullScreenGalleryUrl='';}
+  image.removeAttribute('src');caption.textContent=`${entry.category} — ${entry.job?.workOrder||'Job'} (${fullScreenGalleryIndex+1} of ${fullScreenGalleryEntries.length})`;
+  try{const resolved=await gallerySource(entry.source);if(resolved.temporary)fullScreenGalleryUrl=resolved.url;image.src=resolved.url;}catch(error){caption.textContent=`${entry.category} — this photo is still waiting to sync`;}
+}
+async function openFullScreenPhotoGallery(jobId,category='',index=0){
+  const job=(Array.isArray(jobs)?jobs:[]).find(item=>item.id===jobId);if(!job)return;
+  fullScreenGalleryEntries=galleryPhotosForJob(job);
+  if(category){const first=fullScreenGalleryEntries.findIndex(item=>item.category===category);fullScreenGalleryIndex=Math.max(0,first)+Number(index||0);}else fullScreenGalleryIndex=0;
+  if(!fullScreenGalleryEntries[fullScreenGalleryIndex])fullScreenGalleryIndex=0;
+  if(!fullScreenGalleryEntries.length){alert('There are no photos to view for this job yet.');return;}
+  let overlay=document.querySelector('#akonPhotoOverlay');
+  if(!overlay){overlay=document.createElement('section');overlay.id='akonPhotoOverlay';overlay.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(4,20,32,.92);display:grid;grid-template-rows:auto 1fr auto;color:#fff;padding:16px;gap:12px';overlay.innerHTML='<div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><strong data-gallery-caption>Photo</strong><button type="button" data-action="close-fullscreen-photo" style="border:0;border-radius:50%;width:42px;height:42px;font-size:26px">×</button></div><div style="display:grid;grid-template-columns:48px 1fr 48px;gap:8px;align-items:center;min-height:0"><button type="button" data-action="fullscreen-photo-prev" style="height:48px;border-radius:50%;border:0;font-size:30px">‹</button><img alt="Job photo" style="max-width:100%;max-height:78vh;width:auto;height:auto;margin:auto;border-radius:12px"><button type="button" data-action="fullscreen-photo-next" style="height:48px;border-radius:50%;border:0;font-size:30px">›</button></div><button type="button" data-action="fullscreen-photo-download" class="secondary">Download photo</button>';document.body.append(overlay);}
+  overlay.hidden=false;await showFullScreenPhoto();
+}
+document.addEventListener('click',event=>{
+  const action=event.target.closest('[data-action]');if(!action)return;
+  const type=action.dataset.action;
+  if(type==='open-gallery-job'){event.preventDefault();event.stopImmediatePropagation();groupedGalleryJobId=action.dataset.jobId;render('photo-library');}
+  if(type==='gallery-back-to-jobs'){event.preventDefault();event.stopImmediatePropagation();groupedGalleryJobId='';render('photo-library');}
+  if(type==='open-grouped-photo'){event.preventDefault();event.stopImmediatePropagation();openFullScreenPhotoGallery(action.dataset.jobId,action.dataset.category,action.dataset.photoIndex);}
+  if(type==='open-photo-gallery'){event.preventDefault();event.stopImmediatePropagation();openFullScreenPhotoGallery(activePhotoJobId||activeJobId,action.dataset.category||'');}
+  if(type==='close-fullscreen-photo'){event.preventDefault();document.querySelector('#akonPhotoOverlay')?.setAttribute('hidden','');}
+  if(type==='fullscreen-photo-prev'||type==='fullscreen-photo-next'){event.preventDefault();if(!fullScreenGalleryEntries.length)return;fullScreenGalleryIndex=(fullScreenGalleryIndex+(type==='fullscreen-photo-next'?1:-1)+fullScreenGalleryEntries.length)%fullScreenGalleryEntries.length;showFullScreenPhoto();}
+  if(type==='fullscreen-photo-download'){event.preventDefault();const entry=fullScreenGalleryEntries[fullScreenGalleryIndex];if(entry){galleryEntries=fullScreenGalleryEntries;galleryIndex=fullScreenGalleryIndex;downloadGalleryPhoto();}}
+},true);
 
 // Existing buttons already call calculateTravel. Point that established action
 // at the base-aware version so older click handlers cannot bypass it.
