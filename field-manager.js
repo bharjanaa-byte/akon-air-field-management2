@@ -250,7 +250,7 @@ const repairMeetingMistake=job=>{const warehouse=/273\s+Bowes\s+Road/i.test(Stri
 for(const job of jobs){const fixed=repairMeetingMistake(job);if(fixed!==job)Object.assign(job,fixed)}
 const mergeDispatchOverrides=mergeJobsForSync;mergeJobsForSync=(localJobs=[],remoteJobs=[])=>mergeDispatchOverrides(localJobs,remoteJobs).map(job=>{const patch=dispatchCardOverrides[String(job.workOrder||'').match(/\d{5,}/)?.[0]||String(job.workOrder||'')];return repairMeetingMistake(patch?{...job,...patch}:job)});
 window.addEventListener('click',async e=>{const action=e.target.closest('[data-action="check-dispatch"]');if(!action)return;e.preventDefault();e.stopImmediatePropagation();const status=document.querySelector('#emailDispatchStatus'),label=action.textContent;action.disabled=true;if(status)status.textContent='Checking recent Master Dispatch PDFs for upcoming jobs...';try{const session=await supabase?.auth.getSession();if(!session?.data?.session)throw new Error('Please sign in first.');const response=await fetch('/.netlify/functions/check-dispatch-now',{headers:{authorization:`Bearer ${session.data.session.access_token}`}}),data=await response.json();if(!response.ok)throw new Error(data.error||'Could not check Gmail.');const workOrderKey=value=>String(value||'').match(/\d{5,}/)?.[0]||String(value||'').trim(),missing=value=>!String(value||'').trim()||/^(?:-|n\/?a|address not available)$/i.test(String(value).trim());let repaired=0;for(const incoming of data.records||[]){const key=workOrderKey(incoming.workOrder),patch={};for(const field of ['source','date','workType','customer','phone','address','equipment','notes','appointmentStart','appointmentEnd'])if(incoming[field]&&!((field==='address'||field==='phone')&&missing(incoming[field])))patch[field]=incoming[field];if(incoming.workType==='Meeting')Object.assign(patch,{workType:'Meeting',customer:'GoLime meeting',extras:[],additionalWork:[],customAmount:0});if(!Object.keys(patch).length)continue;dispatchCardOverrides[key]={...(dispatchCardOverrides[key]||{}),...patch};for(const job of jobs.filter(job=>workOrderKey(job.workOrder)===key))Object.assign(job,patch);repaired++}localStorage.setItem('akon-air-dispatch-card-overrides',JSON.stringify(dispatchCardOverrides));saveLocal();if(currentView==='jobs')renderFilteredJobs();if(currentView==='detail')detailView();if(status)status.textContent=(data.message||`Check complete: ${data.imported||0} job(s) imported.`)+(repaired?` Applied complete dispatch details to ${repaired} job${repaired===1?'':'s'} on this device.`:' No matching job details were returned.')}catch(error){if(status)status.textContent=error.message||'Could not check Gmail.';alert(error.message||'Could not check Gmail.')}finally{action.disabled=false;action.textContent=label}},true);
-if('serviceWorker' in navigator)navigator.serviceWorker.register('./service-worker-v129.js');
+if('serviceWorker' in navigator)navigator.serviceWorker.register('./service-worker-v130.js');
 
 const routeColors=['#0c72b8','#16855b','#6957a8','#c96e1a','#d14b68'];
 var homeRouteGeoCache=JSON.parse(localStorage.getItem('akon-air-home-route-geocodes')||'{}');
@@ -714,6 +714,24 @@ document.addEventListener('click',event=>{
 // browser dialog element that fails in some installed mobile app browsers.
 openPhotoGallery=async(jobId,category='')=>openFullScreenPhotoGallery(jobId,category,0);
 
+// Pick Up Equipment gets its own final route for the same reason as the
+// gallery: it must not depend on an older screen wrapper on installed phones.
+const renderBeforeFinalScreenRepairs=render;
+function pickupEquipmentView(){
+  app.innerHTML='<section class="page-title"><button class="back" data-view="dashboard" aria-label="Go back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5 7.5 12l7 7M8 12h9"/></svg></button><div><p class="eyebrow">SAME-DAY EQUIPMENT</p><h1>Pick up equipment</h1><p>Record a pickup and link it to the jobs it supports.</p></div></section><form id="pickupForm" class="form-stack"><section class="form-card"><div class="form-grid"><label>Pickup date<input name="date" type="date" required></label><label>Pickup time<input name="time" type="time"></label><label class="full">Pickup address<input name="address" required placeholder="Warehouse, supplier, or equipment location"></label><label class="full">What are you picking up?<input name="description" required placeholder="e.g. 50-gallon water heater / tank"></label></div></section><section class="form-card"><h2>Link to GoLime work orders</h2><p class="travel-status">This pickup is included as a route stop. Any eligible detour is added to the travel calculation.</p><div id="pickupWorkOrders" class="card-list"></div></section><button class="primary wide" type="submit">Save pickup & recalculate travel</button></form>';
+  const form=document.querySelector('#pickupForm'),dateField=form?.querySelector('[name="date"]'),target=document.querySelector('#pickupWorkOrders');
+  if(!form||!dateField||!target)throw new Error('Pickup form could not be prepared.');
+  dateField.value=travelDate||today;
+  const draw=()=>{const day=dateField.value||today,available=(Array.isArray(jobs)?jobs:[]).filter(job=>job?.source==='goline'&&job.date===day&&job.workType!=='Meeting');target.innerHTML=available.length?available.map(job=>`<label class="route-row" style="cursor:pointer"><span><input type="checkbox" name="workOrder" value="${esc(job.id)}"> <strong>${esc(job.workOrder||'No work order')}</strong><br><small>${esc(job.address||'Address not available')}</small></span></label>`).join(''):'<p class="travel-status">No GoLime installation jobs are scheduled for this date. Choose another date or create the job first.</p>';};
+  dateField.addEventListener('change',draw);draw();
+}
+render=(view='dashboard')=>{
+  if(view!=='pickup')return renderBeforeFinalScreenRepairs(view);
+  currentView='pickup';activePhotoJobId=null;
+  try{pickupEquipmentView();}
+  catch(error){console.error('Pickup screen failed:',error);app.innerHTML='<section class="form-card"><h1>Pick up equipment could not open</h1><p class="travel-status">Return Home and try again.</p><button class="primary wide" data-view="dashboard">Back to Home</button></section>';}
+};
+
 // The Files gallery is a separate route, so make it self-contained. This
 // final route prevents an older screen wrapper from leaving #app empty on a
 // phone when a cached release hands navigation to the latest script.
@@ -816,7 +834,7 @@ async function openFullScreenPhotoGallery(jobId,category='',index=0){
   if(!fullScreenGalleryEntries.length){alert('There are no photos to view for this job yet.');return;}
   let overlay=document.querySelector('#akonPhotoOverlay');
   if(!overlay){overlay=document.createElement('section');overlay.id='akonPhotoOverlay';overlay.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(4,20,32,.92);display:grid;grid-template-rows:auto 1fr auto;color:#fff;padding:16px;gap:12px';overlay.innerHTML='<div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><strong data-gallery-caption>Photo</strong><button type="button" data-action="close-fullscreen-photo" style="border:0;border-radius:50%;width:42px;height:42px;font-size:26px">×</button></div><div style="display:grid;grid-template-columns:48px 1fr 48px;gap:8px;align-items:center;min-height:0"><button type="button" data-action="fullscreen-photo-prev" style="height:48px;border-radius:50%;border:0;font-size:30px">‹</button><img alt="Job photo" style="max-width:100%;max-height:78vh;width:auto;height:auto;margin:auto;border-radius:12px"><button type="button" data-action="fullscreen-photo-next" style="height:48px;border-radius:50%;border:0;font-size:30px">›</button></div><button type="button" data-action="fullscreen-photo-download" class="secondary">Download photo</button>';document.body.append(overlay);}
-  overlay.hidden=false;await showFullScreenPhoto();
+  overlay.hidden=false;overlay.style.display='grid';await showFullScreenPhoto();
 }
 document.addEventListener('click',event=>{
   const action=event.target.closest('[data-action]');if(!action)return;
@@ -825,7 +843,7 @@ document.addEventListener('click',event=>{
   if(type==='gallery-back-to-jobs'){event.preventDefault();event.stopImmediatePropagation();groupedGalleryJobId='';render('photo-library');}
   if(type==='open-grouped-photo'){event.preventDefault();event.stopImmediatePropagation();openFullScreenPhotoGallery(action.dataset.jobId,action.dataset.category,action.dataset.photoIndex);}
   if(type==='open-photo-gallery'){event.preventDefault();event.stopImmediatePropagation();openFullScreenPhotoGallery(activePhotoJobId||activeJobId,action.dataset.category||'');}
-  if(type==='close-fullscreen-photo'){event.preventDefault();document.querySelector('#akonPhotoOverlay')?.setAttribute('hidden','');}
+  if(type==='close-fullscreen-photo'){event.preventDefault();event.stopImmediatePropagation();const overlay=document.querySelector('#akonPhotoOverlay');if(overlay){overlay.hidden=true;overlay.style.display='none';}if(fullScreenGalleryUrl){URL.revokeObjectURL(fullScreenGalleryUrl);fullScreenGalleryUrl='';}}
   if(type==='fullscreen-photo-prev'||type==='fullscreen-photo-next'){event.preventDefault();if(!fullScreenGalleryEntries.length)return;fullScreenGalleryIndex=(fullScreenGalleryIndex+(type==='fullscreen-photo-next'?1:-1)+fullScreenGalleryEntries.length)%fullScreenGalleryEntries.length;showFullScreenPhoto();}
   if(type==='fullscreen-photo-download'){event.preventDefault();const entry=fullScreenGalleryEntries[fullScreenGalleryIndex];if(entry){galleryEntries=fullScreenGalleryEntries;galleryIndex=fullScreenGalleryIndex;downloadGalleryPhoto();}}
 },true);
@@ -1029,7 +1047,7 @@ startCloudSession=async session=>{await coreStartWithLedger(session);try{await s
 setInterval(()=>{if(remoteReady&&navigator.onLine&&queuedPhotoCount()&&!cloudPushPromise)pushCloudData().catch(error=>console.warn('Queued photo retry will continue.',error));},30000);
 
 // Make the phone’s PDF picker explicit; iOS can ignore a styled file label.
-window.addEventListener('click',event=>{const button=event.target.closest('#paymentInvoiceFileButton');if(!button)return;event.preventDefault();event.stopImmediatePropagation();document.querySelector('#paymentInvoiceFile')?.click();},true);
+window.addEventListener('click',event=>{const button=event.target.closest('#paymentInvoiceFileButton');if(!button)return;event.preventDefault();event.stopImmediatePropagation();const input=document.querySelector('#paymentInvoiceFile');if(!input)return;input.value='';try{if(typeof input.showPicker==='function')input.showPicker();else input.click();}catch(error){input.click();}},true);
 const paymentSyncWithStatus=syncPaymentLedger;
 syncPaymentLedger=async()=>{try{const result=await paymentSyncWithStatus();localStorage.removeItem('akon-air-payment-ledger-error');return result;}catch(error){localStorage.setItem('akon-air-payment-ledger-error',error.message||'Payment invoice sync is not ready.');throw error;}};
 const paymentViewWithLedgerStatus=paymentsView;
@@ -1463,7 +1481,8 @@ function hydrateEmailPaymentReviews(){
 async function checkGoLimePaymentEmail(button){
   const status=document.querySelector('#paymentEmailStatus'),label=button.textContent;
   try{
-    const session=await supabase?.auth.getSession();
+    await ensureCloudClient();
+    const session=await supabase.auth.getSession();
     if(!session?.data?.session)throw new Error('Please sign in first, then try the payment email check again.');
     button.disabled=true;
     if(status)status.textContent='Checking GoLime payment emails from Dhara Patel...';
@@ -1547,3 +1566,14 @@ render=(view='dashboard')=>{
   catch(error){console.error('Work-order photo cards failed:',error);app.innerHTML='<section class="form-card"><h1>Photo gallery could not open</h1><p class="travel-status">Your saved photos remain safe. Return to Files and try again.</p><button class="primary wide" data-view="files">Back to Files</button></section>';}
 };
 openPhotoGallery=async(jobId,category='')=>openFullScreenPhotoGallery(jobId,category,0);
+
+// Install the pickup route after every compatibility renderer as well.
+const renderBeforeLivePickupScreen=render;
+render=(view='dashboard')=>{
+  if(view==='pickup'){
+    currentView='pickup';activePhotoJobId=null;
+    try{return pickupEquipmentView();}
+    catch(error){console.error('Pickup screen failed:',error);app.innerHTML='<section class="form-card"><h1>Pick up equipment could not open</h1><p class="travel-status">Return Home and try again.</p><button class="primary wide" data-view="dashboard">Back to Home</button></section>';return;}
+  }
+  return renderBeforeLivePickupScreen(view);
+};

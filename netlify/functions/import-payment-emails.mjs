@@ -3,7 +3,7 @@ import { importAllPaymentInvoices } from './_payment-import.mjs';
 
 // Run several times a day. The Toronto weekday guard below means it only
 // imports on Thursday through Sunday, even through daylight-saving changes.
-export const config = { schedule: '0 */6 * * *' };
+export const config = { schedule: '*/30 * * * *' };
 
 const torontoWeekday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Toronto', weekday: 'short' }).format(new Date());
 
