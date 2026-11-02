@@ -250,7 +250,7 @@ const repairMeetingMistake=job=>{const warehouse=/273\s+Bowes\s+Road/i.test(Stri
 for(const job of jobs){const fixed=repairMeetingMistake(job);if(fixed!==job)Object.assign(job,fixed)}
 const mergeDispatchOverrides=mergeJobsForSync;mergeJobsForSync=(localJobs=[],remoteJobs=[])=>mergeDispatchOverrides(localJobs,remoteJobs).map(job=>{const patch=dispatchCardOverrides[String(job.workOrder||'').match(/\d{5,}/)?.[0]||String(job.workOrder||'')];return repairMeetingMistake(patch?{...job,...patch}:job)});
 window.addEventListener('click',async e=>{const action=e.target.closest('[data-action="check-dispatch"]');if(!action)return;e.preventDefault();e.stopImmediatePropagation();const status=document.querySelector('#emailDispatchStatus'),label=action.textContent;action.disabled=true;if(status)status.textContent='Checking recent Master Dispatch PDFs for upcoming jobs...';try{const session=await supabase?.auth.getSession();if(!session?.data?.session)throw new Error('Please sign in first.');const response=await fetch('/.netlify/functions/check-dispatch-now',{headers:{authorization:`Bearer ${session.data.session.access_token}`}}),data=await response.json();if(!response.ok)throw new Error(data.error||'Could not check Gmail.');const workOrderKey=value=>String(value||'').match(/\d{5,}/)?.[0]||String(value||'').trim(),missing=value=>!String(value||'').trim()||/^(?:-|n\/?a|address not available)$/i.test(String(value).trim());let repaired=0;for(const incoming of data.records||[]){const key=workOrderKey(incoming.workOrder),patch={};for(const field of ['source','date','workType','customer','phone','address','equipment','notes','appointmentStart','appointmentEnd'])if(incoming[field]&&!((field==='address'||field==='phone')&&missing(incoming[field])))patch[field]=incoming[field];if(incoming.workType==='Meeting')Object.assign(patch,{workType:'Meeting',customer:'GoLime meeting',extras:[],additionalWork:[],customAmount:0});if(!Object.keys(patch).length)continue;dispatchCardOverrides[key]={...(dispatchCardOverrides[key]||{}),...patch};for(const job of jobs.filter(job=>workOrderKey(job.workOrder)===key))Object.assign(job,patch);repaired++}localStorage.setItem('akon-air-dispatch-card-overrides',JSON.stringify(dispatchCardOverrides));saveLocal();if(currentView==='jobs')renderFilteredJobs();if(currentView==='detail')detailView();if(status)status.textContent=(data.message||`Check complete: ${data.imported||0} job(s) imported.`)+(repaired?` Applied complete dispatch details to ${repaired} job${repaired===1?'':'s'} on this device.`:' No matching job details were returned.')}catch(error){if(status)status.textContent=error.message||'Could not check Gmail.';alert(error.message||'Could not check Gmail.')}finally{action.disabled=false;action.textContent=label}},true);
-if('serviceWorker' in navigator)navigator.serviceWorker.register('./service-worker-v124.js');
+if('serviceWorker' in navigator)navigator.serviceWorker.register('./service-worker-v125.js');
 
 const routeColors=['#0c72b8','#16855b','#6957a8','#c96e1a','#d14b68'];
 var homeRouteGeoCache=JSON.parse(localStorage.getItem('akon-air-home-route-geocodes')||'{}');
@@ -1183,8 +1183,8 @@ function photoLibraryView(){
 }
 const baseRenderWithPhotoLibrary=baseRender;
 baseRender=(view='dashboard')=>{if(view==='photo-library'){activePhotoJobId=null;app.innerHTML='';const nav=document.querySelector('.bottom-nav'),topbar=document.querySelector('.topbar');if(nav)nav.hidden=false;if(topbar)topbar.hidden=false;setNav(view);updateHeader();return photoLibraryView();}return baseRenderWithPhotoLibrary(view);};
-document.addEventListener('input',event=>{if(event.target.id==='libraryPhotoSearch'){photoLibrarySearch=event.target.value||'';photoLibraryView();}},true);
-document.addEventListener('change',event=>{if(event.target.id==='libraryPhotoDate'){photoLibraryDate=event.target.value||'';photoLibraryView();}},true);
+document.addEventListener('input',event=>{if(event.target.id==='libraryPhotoSearch'){photoLibrarySearch=event.target.value||'';render('photo-library');}},true);
+document.addEventListener('change',event=>{if(event.target.id==='libraryPhotoDate'){photoLibraryDate=event.target.value||'';render('photo-library');}},true);
 document.addEventListener('click',event=>{
   const action=event.target.closest('[data-action]');
   if(action?.dataset.action==='open-library-photo'){
@@ -1354,3 +1354,39 @@ document.addEventListener('click',event=>{
   event.stopImmediatePropagation();
   checkGoLimePaymentEmail(button);
 },true);
+
+// Final, standalone Files → Photo gallery route. This intentionally avoids
+// the older render wrappers and cloned templates so a saved photo entry can
+// never leave the whole screen blank on a phone.
+const renderBeforeStandalonePhotoGallery=render;
+render=(view='dashboard')=>{
+  if(view!=='photo-library')return renderBeforeStandalonePhotoGallery(view);
+  activePhotoJobId=null;
+  currentView='photo-library';
+  try{
+    const records=Array.isArray(jobs)?jobs.filter(Boolean):[];
+    const query=String(photoLibrarySearch||'').trim().toLowerCase();
+    const entries=[];
+    for(const job of records){
+      let photos=[];
+      try{photos=jobPhotoEntries(job);}catch(error){console.warn('Skipped one unreadable photo record.',error);}
+      for(const photo of photos){
+        if(photoLibraryDate&&job.date!==photoLibraryDate)continue;
+        if(query&&![(job.workOrder||''),(job.address||''),(job.customer||''),photo.category].some(value=>String(value).toLowerCase().includes(query)))continue;
+        entries.push({...photo,job});
+      }
+    }
+    entries.sort((a,b)=>String(b.job?.date||'').localeCompare(String(a.job?.date||'')));
+    galleryEntries=entries;
+    app.innerHTML='<section class="page-title"><button class="back" data-view="files" aria-label="Go back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5 7.5 12l7 7M8 12h9"/></svg></button><div><p class="eyebrow">DOCUMENT CENTRE</p><h1>Photo gallery</h1><p>Browse saved job photos by date, address, or work order.</p></div></section><section class="form-card"><div class="form-grid"><label>Specific date<input id="libraryPhotoDate" type="date"></label><label>Search address or work order<input id="libraryPhotoSearch" type="search" placeholder="e.g. Ottawa or WO-169933"></label></div><p id="photoLibraryStatus" class="travel-status"></p></section><section id="photoLibraryGrid" class="card-list"></section>';
+    const date=document.querySelector('#libraryPhotoDate'),search=document.querySelector('#libraryPhotoSearch'),status=document.querySelector('#photoLibraryStatus'),grid=document.querySelector('#photoLibraryGrid');
+    if(date)date.value=photoLibraryDate;
+    if(search)search.value=photoLibrarySearch;
+    if(status)status.textContent=`${entries.length} saved photo${entries.length===1?'':'s'} match your filters.`;
+    if(grid)grid.innerHTML=entries.map((entry,index)=>`<article class="photo-gallery-entry"><button type="button" class="photo-library-preview" data-action="open-library-photo" data-photo-index="${index}" style="border:0;background:transparent;padding:0;cursor:zoom-in"><span class="photo-thumb" data-source="${esc(entry.source)}"><img class="thumb" alt="${esc(entry.category)}" style="width:76px;height:76px;object-fit:cover;border-radius:10px;background:#eef4f7"></span></button><div style="flex:1;min-width:0"><p class="eyebrow">${esc(entry.category)}</p><h2 style="font-size:16px">${esc(entry.job.workOrder||'No work order')}</h2><p>${esc(entry.job.date||'Date unavailable')} • ${esc(entry.job.address||'Address unavailable')}</p></div><button class="secondary small" data-action="open-library-photo" data-photo-index="${index}">View</button></article>`).join('')||empty('No saved photos match these filters.');
+    if(grid)hydratePhotoPreviews(grid).catch(error=>console.warn('Photo gallery previews are still loading.',error));
+  }catch(error){
+    console.error('Standalone photo gallery failed:',error);
+    app.innerHTML='<section class="form-card"><p class="eyebrow">PHOTO GALLERY</p><h1>Photo gallery needs one more refresh</h1><p class="travel-status">Your photos have not been removed. Close the app completely, reopen it, and try Files again.</p><button class="primary wide" data-view="files">Back to Files</button></section>';
+  }
+};
