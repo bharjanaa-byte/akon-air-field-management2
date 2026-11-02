@@ -123,6 +123,7 @@ export async function importPaymentInvoices(integration) {
   const list = await response.json();
   if (!response.ok) throw new Error(list.error?.message || 'Could not search GoLime payment emails.');
   let checked = 0, skipped = 0, unreadable = 0, failures = 0;
+  const errorSamples = [];
   const imported = [];
   for (const message of list.messages || []) {
     if (seenMessages.has(message.id)) { skipped++; continue; }
@@ -137,6 +138,7 @@ export async function importPaymentInvoices(integration) {
     } catch (error) {
       console.error('Payment email was skipped:', message.id, error.message);
       failures++;
+      if (errorSamples.length < 3) errorSamples.push(String(error.message || 'Unknown payment-email error.'));
     }
   }
   if (imported.length) {
@@ -159,10 +161,12 @@ export async function importPaymentInvoices(integration) {
     skipped,
     unreadable,
     failures,
+    matchedEmails: (list.messages || []).length,
+    errorSamples,
     invoices: sharedInvoices,
     message: imported.length
       ? `Imported ${imported.length} GoLime payment invoice${imported.length === 1 ? '' : 's'} from Dhara Patel. Review the matches before sending a follow-up.`
-      : `No new GoLime payment invoices were saved. Checked ${checked} new email${checked === 1 ? '' : 's'}; ${unreadable} attachment${unreadable === 1 ? '' : 's'} could not be read and ${failures} email${failures === 1 ? '' : 's'} failed. Reconnect Gmail only if an error is shown.`
+      : `No new GoLime payment invoices were saved. Gmail found ${(list.messages || []).length} Dhara Patel email${(list.messages || []).length === 1 ? '' : 's'}; checked ${checked} new attachment${checked === 1 ? '' : 's'}, ${unreadable} could not be read, and ${failures} failed.${errorSamples.length ? ` First error: ${errorSamples[0]}` : ''}`
   };
 }
 
