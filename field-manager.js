@@ -250,7 +250,7 @@ const repairMeetingMistake=job=>{const warehouse=/273\s+Bowes\s+Road/i.test(Stri
 for(const job of jobs){const fixed=repairMeetingMistake(job);if(fixed!==job)Object.assign(job,fixed)}
 const mergeDispatchOverrides=mergeJobsForSync;mergeJobsForSync=(localJobs=[],remoteJobs=[])=>mergeDispatchOverrides(localJobs,remoteJobs).map(job=>{const patch=dispatchCardOverrides[String(job.workOrder||'').match(/\d{5,}/)?.[0]||String(job.workOrder||'')];return repairMeetingMistake(patch?{...job,...patch}:job)});
 window.addEventListener('click',async e=>{const action=e.target.closest('[data-action="check-dispatch"]');if(!action)return;e.preventDefault();e.stopImmediatePropagation();const status=document.querySelector('#emailDispatchStatus'),label=action.textContent;action.disabled=true;if(status)status.textContent='Checking recent Master Dispatch PDFs for upcoming jobs...';try{const session=await supabase?.auth.getSession();if(!session?.data?.session)throw new Error('Please sign in first.');const response=await fetch('/.netlify/functions/check-dispatch-now',{headers:{authorization:`Bearer ${session.data.session.access_token}`}}),data=await response.json();if(!response.ok)throw new Error(data.error||'Could not check Gmail.');const workOrderKey=value=>String(value||'').match(/\d{5,}/)?.[0]||String(value||'').trim(),missing=value=>!String(value||'').trim()||/^(?:-|n\/?a|address not available)$/i.test(String(value).trim());let repaired=0;for(const incoming of data.records||[]){const key=workOrderKey(incoming.workOrder),patch={};for(const field of ['source','date','workType','customer','phone','address','equipment','notes','appointmentStart','appointmentEnd'])if(incoming[field]&&!((field==='address'||field==='phone')&&missing(incoming[field])))patch[field]=incoming[field];if(incoming.workType==='Meeting')Object.assign(patch,{workType:'Meeting',customer:'GoLime meeting',extras:[],additionalWork:[],customAmount:0});if(!Object.keys(patch).length)continue;dispatchCardOverrides[key]={...(dispatchCardOverrides[key]||{}),...patch};for(const job of jobs.filter(job=>workOrderKey(job.workOrder)===key))Object.assign(job,patch);repaired++}localStorage.setItem('akon-air-dispatch-card-overrides',JSON.stringify(dispatchCardOverrides));saveLocal();if(currentView==='jobs')renderFilteredJobs();if(currentView==='detail')detailView();if(status)status.textContent=(data.message||`Check complete: ${data.imported||0} job(s) imported.`)+(repaired?` Applied complete dispatch details to ${repaired} job${repaired===1?'':'s'} on this device.`:' No matching job details were returned.')}catch(error){if(status)status.textContent=error.message||'Could not check Gmail.';alert(error.message||'Could not check Gmail.')}finally{action.disabled=false;action.textContent=label}},true);
-if('serviceWorker' in navigator)navigator.serviceWorker.register('./service-worker-v130.js');
+if('serviceWorker' in navigator)navigator.serviceWorker.register('./service-worker-v131.js');
 
 const routeColors=['#0c72b8','#16855b','#6957a8','#c96e1a','#d14b68'];
 var homeRouteGeoCache=JSON.parse(localStorage.getItem('akon-air-home-route-geocodes')||'{}');
@@ -1423,7 +1423,7 @@ function paymentReceivedCardsMarkup(){const target=document.querySelector('#paym
 function paymentLedgerMarkup(){const target=document.querySelector('#paymentLedgerRows');if(!target)return;const rows=paymentLedgerJobs();target.innerHTML=rows.map(job=>{const state=paymentRowState(job),canBill=['Completed','Submitted to GoLime','Paid'].includes(job.status);return `<tr><td><b>${esc(job.workOrder||'No work order')}</b></td><td>${esc(job.date||'—')}</td><td><b>${esc(job.address||'Address not available')}</b><br><small>${esc(job.customer||'GoLime customer')}</small></td><td>${esc(job.workType||'Custom / Other')}</td><td><b>${canBill?money(total(job)):'—'}</b><br>${canBill?`<small>Job ${money(paymentBase(job))} • extras ${money(paymentExtras(job))}</small>`:'<small>Complete job first</small>'}</td><td><b>${esc(state.invoice)}</b><br><small>${esc(state.detail)}</small></td><td><span class="ledger-status ${state.tone}">${esc(state.label)}</span></td></tr>`;}).join('')||'<tr><td colspan="7" style="text-align:center;color:#6b7d89;padding:28px">No GoLime work orders have been imported yet.</td></tr>';}
 function paymentTravelSummaryMarkup(){const target=document.querySelector('#paymentTravelSummary');if(!target)return;const records=Object.entries(travelData||{}).filter(([,record])=>record?.farthestKm!==undefined),totalTravel=records.reduce((sum,[,record])=>sum+Number(travelPay(record).amount||0),0);target.innerHTML=`<b>Travel claims ledger</b><br><small>${records.length} saved travel day${records.length===1?'':'s'} • ${money(totalTravel)} calculated separately from work-order payments.</small>`;}
 function paymentCsv(){const header=['Work order','Date','Address','Customer','Work type','Job amount','Extras','Total due','Status'];const rows=paymentCompletedJobs().map(job=>[job.workOrder,job.date,job.address,job.customer,job.workType,paymentBase(job),paymentExtras(job),total(job),job.status]);return [header,...rows].map(row=>row.map(value=>'"'+String(value??'').replace(/"/g,'""')+'"').join(',')).join('\n');}
-function downloadPaymentFile(content,name,type){const url=URL.createObjectURL(new Blob([content],{type})),link=document.createElement('a');link.href=url;link.download=name;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+async function downloadPaymentFile(content,name,type){const blob=content instanceof Blob?content:new Blob([content],{type});const file=typeof File==='function'?new File([blob],name,{type:blob.type||type}):null;try{if(file&&navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]}))){await navigator.share({files:[file],title:name});return;}}catch(error){if(error?.name==='AbortError')return;console.warn('Native share was unavailable; using a browser download instead.',error);}const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=name;link.style.display='none';document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);}
 function renderPaymentWorkspace(){const screen=document.querySelector('#paymentScreen');if(!screen)return;if(paymentHubSection==='invoices')paymentHubSection='outstanding';screen.querySelectorAll('[data-payment-hub]').forEach(button=>button.classList.toggle('active',button.dataset.paymentHub===paymentHubSection));screen.querySelectorAll('.payment-overview').forEach(target=>target.innerHTML=paymentOverviewMarkup());document.querySelector('#paymentOutstandingSection').hidden=paymentHubSection!=='outstanding';document.querySelector('#paymentInvoiceSection').hidden=true;document.querySelector('#paymentFollowupSection').hidden=paymentHubSection!=='followups';paymentReceivedCardsMarkup();paymentLedgerMarkup();paymentTravelSummaryMarkup();renderPaymentFollowUps();renderPaymentInvoiceHistory();renderPaymentReview();}
 paymentsView=()=>{normalizePaymentLedger();app.innerHTML='';app.append(template('payments-template'));try{renderPaymentWorkspace();}catch(error){console.error('Payment workspace section failed:',error);const notice=document.createElement('section');notice.className='form-card';notice.innerHTML='<p class="eyebrow">PAYMENT WORKSPACE</p><h2>Some payment data needs review</h2><p class="travel-status">Your saved jobs and invoices have not been removed. Refresh once, then open Payments again.</p>';app.prepend(notice);try{paymentLedgerMarkup();}catch(fallbackError){console.error('Payment ledger fallback failed:',fallbackError);}}};
 showPaymentHub=()=>{renderPaymentWorkspace();};
@@ -1479,13 +1479,13 @@ function hydrateEmailPaymentReviews(){
   if(changed)savePaymentLedger();
 }
 async function checkGoLimePaymentEmail(button){
-  const status=document.querySelector('#paymentEmailStatus'),label=button.textContent;
+  const statuses=[...document.querySelectorAll('#paymentEmailStatus,#paymentEmailSettingsStatus')],setStatus=message=>statuses.forEach(status=>status.textContent=message),label=button.textContent;
   try{
     await ensureCloudClient();
     const session=await supabase.auth.getSession();
     if(!session?.data?.session)throw new Error('Please sign in first, then try the payment email check again.');
     button.disabled=true;
-    if(status)status.textContent='Checking GoLime payment emails from Dhara Patel...';
+    setStatus('Checking GoLime payment emails from Dhara Patel...');
     const response=await fetch('/.netlify/functions/check-payment-email-now',{headers:{authorization:`Bearer ${session.data.session.access_token}`}});
     const data=await response.json();
     if(!response.ok)throw new Error(data.error||'Could not check GoLime payment email.');
@@ -1496,11 +1496,11 @@ async function checkGoLimePaymentEmail(button){
     }
     hydrateEmailPaymentReviews();
     if(incoming.length)await syncPaymentLedger?.();
-    if(status)status.textContent=data.message||'Payment email check complete.';
+    setStatus(data.message||'Payment email check complete.');
     if(currentView==='payments')paymentsView();
   }catch(error){
     console.warn('GoLime payment email check failed:',error);
-    if(status)status.textContent=error.message||'Could not check GoLime payment email.';
+    setStatus(error.message||'Could not check GoLime payment email.');
   }finally{
     button.disabled=false;
     button.textContent=label;
@@ -1576,4 +1576,17 @@ render=(view='dashboard')=>{
     catch(error){console.error('Pickup screen failed:',error);app.innerHTML='<section class="form-card"><h1>Pick up equipment could not open</h1><p class="travel-status">Return Home and try again.</p><button class="primary wide" data-view="dashboard">Back to Home</button></section>';return;}
   }
   return renderBeforeLivePickupScreen(view);
+};
+
+// Settings shows the Gmail connection once and makes clear that Master
+// Dispatch and payment PDFs use that same mailbox.
+const loadDispatchStatusBeforePaymentSettings=loadEmailDispatchStatus;
+loadEmailDispatchStatus=async()=>{
+  await loadDispatchStatusBeforePaymentSettings();
+  const paymentStatus=document.querySelector('#paymentEmailSettingsStatus'),dispatchStatus=document.querySelector('#emailDispatchStatus');
+  if(!paymentStatus)return;
+  const text=String(dispatchStatus?.textContent||'');
+  if(/Connected to/i.test(text))paymentStatus.textContent=text.replace(/Imports happen.*$/i,'This same Gmail inbox is ready for GoLime payment invoices from Dhara Patel. Automatic checks run Thursday through Sunday; use the button below to check now.');
+  else if(/Sign in/i.test(text))paymentStatus.textContent='Sign in to check GoLime payment invoices from the connected Gmail mailbox.';
+  else paymentStatus.textContent='Connect or reconnect Gmail first. Payment invoices use the same Gmail connection as Master Dispatch.';
 };
