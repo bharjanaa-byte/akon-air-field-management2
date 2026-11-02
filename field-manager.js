@@ -250,7 +250,7 @@ const repairMeetingMistake=job=>{const warehouse=/273\s+Bowes\s+Road/i.test(Stri
 for(const job of jobs){const fixed=repairMeetingMistake(job);if(fixed!==job)Object.assign(job,fixed)}
 const mergeDispatchOverrides=mergeJobsForSync;mergeJobsForSync=(localJobs=[],remoteJobs=[])=>mergeDispatchOverrides(localJobs,remoteJobs).map(job=>{const patch=dispatchCardOverrides[String(job.workOrder||'').match(/\d{5,}/)?.[0]||String(job.workOrder||'')];return repairMeetingMistake(patch?{...job,...patch}:job)});
 window.addEventListener('click',async e=>{const action=e.target.closest('[data-action="check-dispatch"]');if(!action)return;e.preventDefault();e.stopImmediatePropagation();const status=document.querySelector('#emailDispatchStatus'),label=action.textContent;action.disabled=true;if(status)status.textContent='Checking recent Master Dispatch PDFs for upcoming jobs...';try{const session=await supabase?.auth.getSession();if(!session?.data?.session)throw new Error('Please sign in first.');const response=await fetch('/.netlify/functions/check-dispatch-now',{headers:{authorization:`Bearer ${session.data.session.access_token}`}}),data=await response.json();if(!response.ok)throw new Error(data.error||'Could not check Gmail.');const workOrderKey=value=>String(value||'').match(/\d{5,}/)?.[0]||String(value||'').trim(),missing=value=>!String(value||'').trim()||/^(?:-|n\/?a|address not available)$/i.test(String(value).trim());let repaired=0;for(const incoming of data.records||[]){const key=workOrderKey(incoming.workOrder),patch={};for(const field of ['source','date','workType','customer','phone','address','equipment','notes','appointmentStart','appointmentEnd'])if(incoming[field]&&!((field==='address'||field==='phone')&&missing(incoming[field])))patch[field]=incoming[field];if(incoming.workType==='Meeting')Object.assign(patch,{workType:'Meeting',customer:'GoLime meeting',extras:[],additionalWork:[],customAmount:0});if(!Object.keys(patch).length)continue;dispatchCardOverrides[key]={...(dispatchCardOverrides[key]||{}),...patch};for(const job of jobs.filter(job=>workOrderKey(job.workOrder)===key))Object.assign(job,patch);repaired++}localStorage.setItem('akon-air-dispatch-card-overrides',JSON.stringify(dispatchCardOverrides));saveLocal();if(currentView==='jobs')renderFilteredJobs();if(currentView==='detail')detailView();if(status)status.textContent=(data.message||`Check complete: ${data.imported||0} job(s) imported.`)+(repaired?` Applied complete dispatch details to ${repaired} job${repaired===1?'':'s'} on this device.`:' No matching job details were returned.')}catch(error){if(status)status.textContent=error.message||'Could not check Gmail.';alert(error.message||'Could not check Gmail.')}finally{action.disabled=false;action.textContent=label}},true);
-if('serviceWorker' in navigator)navigator.serviceWorker.register('./service-worker-v127.js');
+if('serviceWorker' in navigator)navigator.serviceWorker.register('./service-worker-v128.js');
 
 const routeColors=['#0c72b8','#16855b','#6957a8','#c96e1a','#d14b68'];
 var homeRouteGeoCache=JSON.parse(localStorage.getItem('akon-air-home-route-geocodes')||'{}');
@@ -732,12 +732,9 @@ function groupedPhotoGalleryView(){
   grid.innerHTML=groups.map(({job,photos})=>`<button type="button" class="photo-gallery-entry" data-action="open-gallery-job" data-job-id="${esc(job.id)}" style="width:100%;text-align:left;cursor:pointer"><span class="photo-thumb" data-source="${esc(photos[0].source)}"><img class="thumb" alt="Job photo" style="width:76px;height:76px;object-fit:cover;border-radius:10px;background:#eef4f7"></span><span style="flex:1;min-width:0"><p class="eyebrow">${esc(job.date||'Date unavailable')} • ${photos.length} photo${photos.length===1?'':'s'}</p><h2 style="font-size:16px">${esc(job.workOrder||'No work order')}</h2><p>${esc(job.address||'Address unavailable')}</p></span><span class="secondary small">Open</span></button>`).join('')||empty('No saved photos match these filters.');
   hydratePhotoPreviews(grid).catch(error=>console.warn('Photo gallery previews are still loading.',error));
 }
-render=(view='dashboard')=>{
-  if(view!=='photo-library')return renderBeforeGroupedPhotoGallery(view);
-  activePhotoJobId=null;
-  currentView='photo-library';
-  try{groupedPhotoGalleryView();}catch(error){console.error('Grouped photo gallery failed:',error);app.innerHTML='<section class="form-card"><h1>Photo gallery could not open</h1><p class="travel-status">Your saved photos remain safe. Return to Files and try again.</p><button class="primary wide" data-view="files">Back to Files</button></section>';}
-};
+// Keep Files on the proven standalone route while the grouped layout is
+// refined. The full-screen viewer below still serves the Photos → View button.
+render=(view='dashboard')=>renderBeforeGroupedPhotoGallery(view);
 
 let fullScreenGalleryEntries=[],fullScreenGalleryIndex=0,fullScreenGalleryUrl='';
 async function showFullScreenPhoto(){
