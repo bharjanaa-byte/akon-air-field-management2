@@ -250,7 +250,7 @@ const repairMeetingMistake=job=>{const warehouse=/273\s+Bowes\s+Road/i.test(Stri
 for(const job of jobs){const fixed=repairMeetingMistake(job);if(fixed!==job)Object.assign(job,fixed)}
 const mergeDispatchOverrides=mergeJobsForSync;mergeJobsForSync=(localJobs=[],remoteJobs=[])=>mergeDispatchOverrides(localJobs,remoteJobs).map(job=>{const patch=dispatchCardOverrides[String(job.workOrder||'').match(/\d{5,}/)?.[0]||String(job.workOrder||'')];return repairMeetingMistake(patch?{...job,...patch}:job)});
 window.addEventListener('click',async e=>{const action=e.target.closest('[data-action="check-dispatch"]');if(!action)return;e.preventDefault();e.stopImmediatePropagation();const status=document.querySelector('#emailDispatchStatus'),label=action.textContent;action.disabled=true;if(status)status.textContent='Checking recent Master Dispatch PDFs for upcoming jobs...';try{const session=await supabase?.auth.getSession();if(!session?.data?.session)throw new Error('Please sign in first.');const response=await fetch('/.netlify/functions/check-dispatch-now',{headers:{authorization:`Bearer ${session.data.session.access_token}`}}),data=await response.json();if(!response.ok)throw new Error(data.error||'Could not check Gmail.');const workOrderKey=value=>String(value||'').match(/\d{5,}/)?.[0]||String(value||'').trim(),missing=value=>!String(value||'').trim()||/^(?:-|n\/?a|address not available)$/i.test(String(value).trim());let repaired=0;for(const incoming of data.records||[]){const key=workOrderKey(incoming.workOrder),patch={};for(const field of ['source','date','workType','customer','phone','address','equipment','notes','appointmentStart','appointmentEnd'])if(incoming[field]&&!((field==='address'||field==='phone')&&missing(incoming[field])))patch[field]=incoming[field];if(incoming.workType==='Meeting')Object.assign(patch,{workType:'Meeting',customer:'GoLime meeting',extras:[],additionalWork:[],customAmount:0});if(!Object.keys(patch).length)continue;dispatchCardOverrides[key]={...(dispatchCardOverrides[key]||{}),...patch};for(const job of jobs.filter(job=>workOrderKey(job.workOrder)===key))Object.assign(job,patch);repaired++}localStorage.setItem('akon-air-dispatch-card-overrides',JSON.stringify(dispatchCardOverrides));saveLocal();if(currentView==='jobs')renderFilteredJobs();if(currentView==='detail')detailView();if(status)status.textContent=(data.message||`Check complete: ${data.imported||0} job(s) imported.`)+(repaired?` Applied complete dispatch details to ${repaired} job${repaired===1?'':'s'} on this device.`:' No matching job details were returned.')}catch(error){if(status)status.textContent=error.message||'Could not check Gmail.';alert(error.message||'Could not check Gmail.')}finally{action.disabled=false;action.textContent=label}},true);
-if('serviceWorker' in navigator)navigator.serviceWorker.register('./service-worker-v121.js');
+if('serviceWorker' in navigator)navigator.serviceWorker.register('./service-worker-v122.js');
 
 const routeColors=['#0c72b8','#16855b','#6957a8','#c96e1a','#d14b68'];
 var homeRouteGeoCache=JSON.parse(localStorage.getItem('akon-air-home-route-geocodes')||'{}');
@@ -662,6 +662,28 @@ document.addEventListener('click',event=>{
   calendarDate.setMonth(calendarDate.getMonth()+(control.id==='prevMonth'?-1:1));
   drawCalendar();
 },true);
+
+// The Files gallery is a separate route, so make it self-contained. This
+// final route prevents an older screen wrapper from leaving #app empty on a
+// phone when a cached release hands navigation to the latest script.
+const renderBeforePhotoLibraryRepair=render;
+render=(view='dashboard')=>{
+  if(view!=='photo-library')return renderBeforePhotoLibraryRepair(view);
+  try{
+    activePhotoJobId=null;
+    currentView='photo-library';
+    app.innerHTML='';
+    const nav=document.querySelector('.bottom-nav'),topbar=document.querySelector('.topbar');
+    if(nav)nav.hidden=false;
+    if(topbar)topbar.hidden=false;
+    setNav(view);
+    updateHeader();
+    photoLibraryView();
+  }catch(error){
+    console.error('Photo gallery screen failed:',error);
+    app.innerHTML='<section class="form-card"><p class="eyebrow">PHOTO GALLERY</p><h1>Photos could not open yet</h1><p class="travel-status">Your photos remain safe. Return to Files and try again after the app finishes updating.</p><button class="primary wide" data-view="files">Back to Files</button></section>';
+  }
+};
 
 // Existing buttons already call calculateTravel. Point that established action
 // at the base-aware version so older click handlers cannot bypass it.
