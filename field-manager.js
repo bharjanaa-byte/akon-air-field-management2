@@ -250,7 +250,7 @@ const repairMeetingMistake=job=>{const warehouse=/273\s+Bowes\s+Road/i.test(Stri
 for(const job of jobs){const fixed=repairMeetingMistake(job);if(fixed!==job)Object.assign(job,fixed)}
 const mergeDispatchOverrides=mergeJobsForSync;mergeJobsForSync=(localJobs=[],remoteJobs=[])=>mergeDispatchOverrides(localJobs,remoteJobs).map(job=>{const patch=dispatchCardOverrides[String(job.workOrder||'').match(/\d{5,}/)?.[0]||String(job.workOrder||'')];return repairMeetingMistake(patch?{...job,...patch}:job)});
 window.addEventListener('click',async e=>{const action=e.target.closest('[data-action="check-dispatch"]');if(!action)return;e.preventDefault();e.stopImmediatePropagation();const status=document.querySelector('#emailDispatchStatus'),label=action.textContent;action.disabled=true;if(status)status.textContent='Checking recent Master Dispatch PDFs for upcoming jobs...';try{const session=await supabase?.auth.getSession();if(!session?.data?.session)throw new Error('Please sign in first.');const response=await fetch('/.netlify/functions/check-dispatch-now',{headers:{authorization:`Bearer ${session.data.session.access_token}`}}),data=await response.json();if(!response.ok)throw new Error(data.error||'Could not check Gmail.');const workOrderKey=value=>String(value||'').match(/\d{5,}/)?.[0]||String(value||'').trim(),missing=value=>!String(value||'').trim()||/^(?:-|n\/?a|address not available)$/i.test(String(value).trim());let repaired=0;for(const incoming of data.records||[]){const key=workOrderKey(incoming.workOrder),patch={};for(const field of ['source','date','workType','customer','phone','address','equipment','notes','appointmentStart','appointmentEnd'])if(incoming[field]&&!((field==='address'||field==='phone')&&missing(incoming[field])))patch[field]=incoming[field];if(incoming.workType==='Meeting')Object.assign(patch,{workType:'Meeting',customer:'GoLime meeting',extras:[],additionalWork:[],customAmount:0});if(!Object.keys(patch).length)continue;dispatchCardOverrides[key]={...(dispatchCardOverrides[key]||{}),...patch};for(const job of jobs.filter(job=>workOrderKey(job.workOrder)===key))Object.assign(job,patch);repaired++}localStorage.setItem('akon-air-dispatch-card-overrides',JSON.stringify(dispatchCardOverrides));saveLocal();if(currentView==='jobs')renderFilteredJobs();if(currentView==='detail')detailView();if(status)status.textContent=(data.message||`Check complete: ${data.imported||0} job(s) imported.`)+(repaired?` Applied complete dispatch details to ${repaired} job${repaired===1?'':'s'} on this device.`:' No matching job details were returned.')}catch(error){if(status)status.textContent=error.message||'Could not check Gmail.';alert(error.message||'Could not check Gmail.')}finally{action.disabled=false;action.textContent=label}},true);
-if('serviceWorker' in navigator)navigator.serviceWorker.register('./service-worker-v128.js');
+if('serviceWorker' in navigator)navigator.serviceWorker.register('./service-worker-v129.js');
 
 const routeColors=['#0c72b8','#16855b','#6957a8','#c96e1a','#d14b68'];
 var homeRouteGeoCache=JSON.parse(localStorage.getItem('akon-air-home-route-geocodes')||'{}');
@@ -663,6 +663,57 @@ document.addEventListener('click',event=>{
   drawCalendar();
 },true);
 
+// The photo-library screen deliberately owns only its small amount of state
+// here. It groups photos by saved job/work order and does not depend on the
+// older gallery render stack.
+const renderBeforeWorkOrderPhotoCards=render;
+function workOrderPhotoCards(){
+  const state=window.__akonPhotoLibraryState||(window.__akonPhotoLibraryState={query:'',date:'',jobId:''});
+  const grouped=[];
+  for(const job of (Array.isArray(jobs)?jobs:[])){
+    if(!job||typeof job!=='object')continue;
+    const photos=[];
+    const photoSets=job.photos&&typeof job.photos==='object'?job.photos:{};
+    for(const [category,value] of Object.entries(photoSets)){
+      for(const source of (Array.isArray(value)?value:[value]))if(typeof source==='string'&&source.trim())photos.push({category,source,job});
+    }
+    const q=String(state.query||'').trim().toLowerCase();
+    const matches=!q||[job.workOrder,job.address,job.customer,job.date].some(value=>String(value||'').toLowerCase().includes(q));
+    if(photos.length&&matches&&(!state.date||job.date===state.date))grouped.push({job,photos});
+  }
+  grouped.sort((a,b)=>String(b.job.date||'').localeCompare(String(a.job.date||'')));
+  app.innerHTML='<section class="page-title"><button class="back" data-view="files" aria-label="Go back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5 7.5 12l7 7M8 12h9"/></svg></button><div><p class="eyebrow">DOCUMENT CENTRE</p><h1>Photo gallery</h1><p>Open a work order to view its labelled job photos.</p></div></section><section class="form-card"><div class="form-grid"><label>Search work order, address or date<input id="workOrderPhotoSearch" type="search" placeholder="e.g. WO-169933 or Ottawa"></label><label>Specific date<input id="workOrderPhotoDate" type="date"></label></div><p id="workOrderPhotoStatus" class="travel-status"></p></section><section id="workOrderPhotoCards" class="card-list"></section>';
+  const search=document.querySelector('#workOrderPhotoSearch'),date=document.querySelector('#workOrderPhotoDate'),status=document.querySelector('#workOrderPhotoStatus'),cards=document.querySelector('#workOrderPhotoCards');
+  if(search)search.value=state.query;if(date)date.value=state.date;
+  if(status)status.textContent=`${grouped.length} job${grouped.length===1?'':'s'} with saved photos.`;
+  if(!cards)return;
+  const openGroup=grouped.find(group=>group.job.id===state.jobId);
+  if(openGroup){
+    const categories={};for(const photo of openGroup.photos)(categories[photo.category]||(categories[photo.category]=[])).push(photo);
+    cards.innerHTML=`<section class="form-card"><button type="button" class="secondary small" data-action="photo-library-all-jobs">All work orders</button><p class="eyebrow" style="margin-top:14px">${esc(openGroup.job.date||'Date unavailable')}</p><h2>${esc(openGroup.job.workOrder||'No work order')}</h2><p class="travel-status">${esc(openGroup.job.address||'Address unavailable')}</p></section>`+Object.entries(categories).map(([category,photos])=>`<section class="form-card"><p class="eyebrow">${esc(category)}</p><div class="thumbs">${photos.map((photo,index)=>`<button type="button" data-action="open-workorder-photo" data-job-id="${esc(openGroup.job.id)}" data-photo-category="${esc(category)}" data-photo-index="${index}" style="border:0;background:transparent;padding:0"><span class="photo-thumb" data-source="${esc(photo.source)}"><img class="thumb" alt="${esc(category)}" style="width:116px;height:116px;object-fit:cover;border-radius:12px;background:#eef4f7"></span></button>`).join('')}</div></section>`).join('');
+  }else{
+    cards.innerHTML=grouped.map(({job,photos})=>`<button type="button" class="photo-gallery-entry" data-action="open-photo-workorder" data-job-id="${esc(job.id)}" style="width:100%;text-align:left;cursor:pointer"><span class="photo-thumb" data-source="${esc(photos[0].source)}"><img class="thumb" alt="Job photo" style="width:76px;height:76px;object-fit:cover;border-radius:10px;background:#eef4f7"></span><span style="flex:1;min-width:0"><p class="eyebrow">${esc(job.date||'Date unavailable')} • ${photos.length} photo${photos.length===1?'':'s'}</p><h2 style="font-size:16px">${esc(job.workOrder||'No work order')}</h2><p>${esc(job.address||'Address unavailable')}</p></span><span class="secondary small">Open</span></button>`).join('')||empty('No saved photos match your search.');
+  }
+  hydratePhotoPreviews(cards).catch(error=>console.warn('Photo previews are still loading.',error));
+}
+render=(view='dashboard')=>{
+  if(view!=='photo-library')return renderBeforeWorkOrderPhotoCards(view);
+  currentView='photo-library';activePhotoJobId=null;
+  try{workOrderPhotoCards();}catch(error){console.error('Work-order photo cards failed:',error);app.innerHTML='<section class="form-card"><h1>Photo gallery could not open</h1><p class="travel-status">Your saved photos remain safe. Return to Files and try again.</p><button class="primary wide" data-view="files">Back to Files</button></section>';}
+};
+document.addEventListener('input',event=>{if(event.target.id!=='workOrderPhotoSearch')return;window.__akonPhotoLibraryState.query=event.target.value||'';window.__akonPhotoLibraryState.jobId='';render('photo-library');},true);
+document.addEventListener('change',event=>{if(event.target.id!=='workOrderPhotoDate')return;window.__akonPhotoLibraryState.date=event.target.value||'';window.__akonPhotoLibraryState.jobId='';render('photo-library');},true);
+document.addEventListener('click',event=>{
+  const action=event.target.closest('[data-action]');if(!action)return;
+  const state=window.__akonPhotoLibraryState||(window.__akonPhotoLibraryState={query:'',date:'',jobId:''});
+  if(action.dataset.action==='open-photo-workorder'){event.preventDefault();event.stopImmediatePropagation();state.jobId=action.dataset.jobId;render('photo-library');}
+  if(action.dataset.action==='photo-library-all-jobs'){event.preventDefault();event.stopImmediatePropagation();state.jobId='';render('photo-library');}
+  if(action.dataset.action==='open-workorder-photo'){event.preventDefault();event.stopImmediatePropagation();openFullScreenPhotoGallery(action.dataset.jobId,action.dataset.photoCategory||'',Number(action.dataset.photoIndex)||0);}
+},true);
+// The category View buttons on a job use this reliable overlay, not the
+// browser dialog element that fails in some installed mobile app browsers.
+openPhotoGallery=async(jobId,category='')=>openFullScreenPhotoGallery(jobId,category,0);
+
 // The Files gallery is a separate route, so make it self-contained. This
 // final route prevents an older screen wrapper from leaving #app empty on a
 // phone when a cached release hands navigation to the latest script.
@@ -691,6 +742,18 @@ render=(view='dashboard')=>{
     app.innerHTML='<section class="form-card"><p class="eyebrow">PHOTO GALLERY</p><h1>Photos could not open yet</h1><p class="travel-status">Your photos remain safe. Return to Files and try again after the app finishes updating.</p><button class="primary wide" data-view="files">Back to Files</button></section>';
   }
 };
+
+// Final route selection: the work-order card gallery above wins over all
+// earlier compatibility renderers.
+const renderBeforeFinalWorkOrderPhotoCards=render;
+render=(view='dashboard')=>{
+  if(view!=='photo-library')return renderBeforeFinalWorkOrderPhotoCards(view);
+  currentView='photo-library';
+  activePhotoJobId=null;
+  try{workOrderPhotoCards();}
+  catch(error){console.error('Work-order photo cards failed:',error);app.innerHTML='<section class="form-card"><h1>Photo gallery could not open</h1><p class="travel-status">Your saved photos remain safe. Return to Files and try again.</p><button class="primary wide" data-view="files">Back to Files</button></section>';}
+};
+openPhotoGallery=async(jobId,category='')=>openFullScreenPhotoGallery(jobId,category,0);
 
 // Photo gallery, grouped by job. A work order opens into its labelled photo
 // categories instead of mixing every image from every job into one long list.
@@ -1472,3 +1535,15 @@ render=(view='dashboard')=>{
     app.innerHTML='<section class="form-card"><p class="eyebrow">PHOTO GALLERY</p><h1>Photo gallery needs one more refresh</h1><p class="travel-status">Your photos have not been removed. Close the app completely, reopen it, and try Files again.</p><button class="primary wide" data-view="files">Back to Files</button></section>';
   }
 };
+
+// Make the work-order card gallery the last renderer installed, so no
+// compatibility renderer below it can replace it.
+const renderBeforeLiveWorkOrderPhotoCards=render;
+render=(view='dashboard')=>{
+  if(view!=='photo-library')return renderBeforeLiveWorkOrderPhotoCards(view);
+  currentView='photo-library';
+  activePhotoJobId=null;
+  try{workOrderPhotoCards();}
+  catch(error){console.error('Work-order photo cards failed:',error);app.innerHTML='<section class="form-card"><h1>Photo gallery could not open</h1><p class="travel-status">Your saved photos remain safe. Return to Files and try again.</p><button class="primary wide" data-view="files">Back to Files</button></section>';}
+};
+openPhotoGallery=async(jobId,category='')=>openFullScreenPhotoGallery(jobId,category,0);
