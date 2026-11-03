@@ -250,7 +250,7 @@ const repairMeetingMistake=job=>{const warehouse=/273\s+Bowes\s+Road/i.test(Stri
 for(const job of jobs){const fixed=repairMeetingMistake(job);if(fixed!==job)Object.assign(job,fixed)}
 const mergeDispatchOverrides=mergeJobsForSync;mergeJobsForSync=(localJobs=[],remoteJobs=[])=>mergeDispatchOverrides(localJobs,remoteJobs).map(job=>{const patch=dispatchCardOverrides[String(job.workOrder||'').match(/\d{5,}/)?.[0]||String(job.workOrder||'')];return repairMeetingMistake(patch?{...job,...patch}:job)});
 window.addEventListener('click',async e=>{const action=e.target.closest('[data-action="check-dispatch"]');if(!action)return;e.preventDefault();e.stopImmediatePropagation();const status=document.querySelector('#emailDispatchStatus'),label=action.textContent;action.disabled=true;if(status)status.textContent='Checking recent Master Dispatch PDFs for upcoming jobs...';try{const session=await supabase?.auth.getSession();if(!session?.data?.session)throw new Error('Please sign in first.');const response=await fetch('/.netlify/functions/check-dispatch-now',{headers:{authorization:`Bearer ${session.data.session.access_token}`}}),data=await response.json();if(!response.ok)throw new Error(data.error||'Could not check Gmail.');const workOrderKey=value=>String(value||'').match(/\d{5,}/)?.[0]||String(value||'').trim(),missing=value=>!String(value||'').trim()||/^(?:-|n\/?a|address not available)$/i.test(String(value).trim());let repaired=0;for(const incoming of data.records||[]){const key=workOrderKey(incoming.workOrder),patch={};for(const field of ['source','date','workType','customer','phone','address','equipment','notes','appointmentStart','appointmentEnd'])if(incoming[field]&&!((field==='address'||field==='phone')&&missing(incoming[field])))patch[field]=incoming[field];if(incoming.workType==='Meeting')Object.assign(patch,{workType:'Meeting',customer:'GoLime meeting',extras:[],additionalWork:[],customAmount:0});if(!Object.keys(patch).length)continue;dispatchCardOverrides[key]={...(dispatchCardOverrides[key]||{}),...patch};for(const job of jobs.filter(job=>workOrderKey(job.workOrder)===key))Object.assign(job,patch);repaired++}localStorage.setItem('akon-air-dispatch-card-overrides',JSON.stringify(dispatchCardOverrides));saveLocal();if(currentView==='jobs')renderFilteredJobs();if(currentView==='detail')detailView();if(status)status.textContent=(data.message||`Check complete: ${data.imported||0} job(s) imported.`)+(repaired?` Applied complete dispatch details to ${repaired} job${repaired===1?'':'s'} on this device.`:' No matching job details were returned.')}catch(error){if(status)status.textContent=error.message||'Could not check Gmail.';alert(error.message||'Could not check Gmail.')}finally{action.disabled=false;action.textContent=label}},true);
-if('serviceWorker' in navigator)navigator.serviceWorker.register('./service-worker.js?v=164');
+if('serviceWorker' in navigator)navigator.serviceWorker.register('./service-worker.js?v=165');
 
 const routeColors=['#0c72b8','#16855b','#6957a8','#c96e1a','#d14b68'];
 var homeRouteGeoCache=JSON.parse(localStorage.getItem('akon-air-home-route-geocodes')||'{}');
@@ -302,7 +302,7 @@ refreshFromCloud=async()=>{if(!remoteReady||cloudPushPromise)return;try{const be
 // Preserve every work order during cloud reconciliation.  Earlier duplicate
 // Remove legacy workers once. Earlier app versions registered three competing
 // workers, which could keep an outdated mapping script alive on a phone.
-if('serviceWorker' in navigator&&!localStorage.getItem('akon-air-worker-reset-v164')){navigator.serviceWorker.getRegistrations().then(registrations=>Promise.all(registrations.map(registration=>registration.unregister()))).then(()=>{localStorage.setItem('akon-air-worker-reset-v164','1');return navigator.serviceWorker.register('./service-worker.js?v=164')}).catch(error=>console.warn('App update check failed:',error))}
+if('serviceWorker' in navigator&&!localStorage.getItem('akon-air-worker-reset-v165')){navigator.serviceWorker.getRegistrations().then(registrations=>Promise.all(registrations.map(registration=>registration.unregister()))).then(()=>{localStorage.setItem('akon-air-worker-reset-v165','1');return navigator.serviceWorker.register('./service-worker.js?v=165')}).catch(error=>console.warn('App update check failed:',error))}
 
 // Preserve every work order during cloud reconciliation.  Earlier duplicate
 // cleanup could discard a locally restored card when a stale cloud copy had
@@ -1635,4 +1635,68 @@ loadEmailDispatchStatus=async()=>{
   if(/Connected to/i.test(text))paymentStatus.textContent=text.replace(/Imports happen.*$/i,'This same Gmail inbox is ready for GoLime payment invoices from Dhara Patel. Automatic checks run Thursday through Sunday; use the button below to check now.');
   else if(/Sign in/i.test(text))paymentStatus.textContent='Sign in to check GoLime payment invoices from the connected Gmail mailbox.';
   else paymentStatus.textContent='Connect or reconnect Gmail first. Payment invoices use the same Gmail connection as Master Dispatch.';
+};
+
+// Photo cards must be useful the moment a picture is selected - before a
+// cloud upload finishes.  Earlier code updated the count but did not add the
+// View button until the entire page was rendered again.
+const refreshPhotoBoxBeforeReliableView=refreshPhotoBox;
+refreshPhotoBox=box=>{
+  refreshPhotoBoxBeforeReliableView(box);
+  const photoCount=box?.querySelectorAll('.thumbs .photo-thumb').length||0;
+  const head=box?.querySelector('.photo-head');
+  let view=head?.querySelector('[data-action="open-photo-gallery"]');
+  if(photoCount&&!view&&head){
+    view=document.createElement('button');
+    view.type='button';view.className='secondary small photo-gallery-launch';
+    view.dataset.action='open-photo-gallery';view.dataset.category=box.dataset.category||'';view.textContent='View';
+    const upload=head.querySelector('.upload-label');
+    head.insertBefore(view,upload||null);
+  }
+  if(!photoCount)view?.remove();
+};
+
+// Save each selected photo locally first, then upload only that job's photos.
+// This avoids a slow full-workspace sync after every picture and leaves a
+// durable local copy in place until the storage record is confirmed.
+handlePhotos=async event=>{
+  const input=event.target,box=input.closest('.photo-category'),files=[...(input.files||[])];
+  if(!box||!files.length)return;
+  const known=new Set([...box.querySelectorAll('.photo-thumb')].map(item=>item.dataset.fileKey).filter(Boolean));
+  const fresh=files.filter(file=>!known.has(`${file.name}-${file.size}-${file.lastModified}`));
+  if(fresh.length!==files.length)alert('That picture is already attached and was skipped.');
+  if(!fresh.length){input.value='';return;}
+  input.disabled=true;box.classList.add('uploading');
+  const note=document.querySelector('#photoSyncNote');let saved=0;
+  try{
+    const thumbs=box.querySelector('.thumbs');
+    for(const file of fresh){
+      if(note)note.textContent=`Saving photo ${saved+1} of ${fresh.length} on this device...`;
+      const blob=await galleryPhotoBlob(file),key=`${file.name}-${file.size}-${file.lastModified}`;
+      let source;
+      try{source=await storeOfflinePhoto(blob);}catch(storageError){console.warn('Offline photo store unavailable.',storageError);source=await photoDataUrl(blob);}
+      thumbs.insertAdjacentHTML('beforeend',photoThumb(source,box.dataset.category,key));
+      const tile=thumbs.lastElementChild,image=tile?.querySelector('img');
+      if(image){image.src=String(source).startsWith(OFFLINE_PHOTO_PREFIX)?URL.createObjectURL(blob):source;image.dataset.ready='1';}
+      saved++;refreshPhotoBox(box);
+    }
+    const job=jobs.find(item=>item.id===(activePhotoJobId||editingJobId));
+    if(!job)throw new Error('This job is not available on this device yet.');
+    job.photos=currentPhotos();rememberJobEdit(job.id);saveLocal();setPendingCloudSync(true);
+    if(!navigator.onLine||!remoteReady){if(note)note.textContent=`${saved} photo${saved===1?'':'s'} saved safely on this device. They will sync when the app is online.`;return;}
+    if(note)note.textContent=`Uploading ${saved} photo${saved===1?'':'s'} to the shared workspace...`;
+    if(!isUuid(String(job.id)))await pushCloudData();
+    else {
+      const result=await syncJobPhotos(job);
+      saveLocal();
+      if(result.waiting){scheduleCloudSync();throw new Error(`${result.waiting} photo${result.waiting===1?' is':'s are'} still queued safely for upload.`);}
+      setPendingCloudSync(false);
+    }
+    if(note)note.textContent=`${saved} photo${saved===1?'':'s'} uploaded. They are now available to the shared workspace.`;
+  }catch(error){
+    console.warn('Photo upload will retry in the background:',error);
+    scheduleCloudSync();
+    if(note)note.textContent=saved?`${saved} photo${saved===1?' is':'s are'} saved on this device and will retry syncing automatically.`:'The selected photo could not be saved. Please choose it again.';
+    if(!saved)alert('The photo could not be saved. Please choose it again.');
+  }finally{input.value='';input.disabled=false;box.classList.remove('uploading');}
 };
