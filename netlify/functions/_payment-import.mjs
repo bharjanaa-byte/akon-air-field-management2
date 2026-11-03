@@ -4,7 +4,11 @@ import { admin, env } from './_shared.mjs';
 // Payment remittances are deliberately kept separate from Master Dispatch.
 // Importing one only creates a review entry; it never changes a job status or
 // marks a work order as paid.
-const PAYMENT_SENDER = 'dhara@golime.com';
+// GoLime sometimes sends a remittance from a different staff mailbox or an
+// automated GoLime address. Search the company domain, then require a real
+// PDF invoice with work orders before saving anything.
+const PAYMENT_DOMAIN = '@golime.com';
+const isGoLimeSender = (value) => String(value || '').toLowerCase().includes(PAYMENT_DOMAIN);
 
 const gmailToken = async (refreshToken) => {
   const body = new URLSearchParams({
@@ -27,7 +31,7 @@ const header = (email, name) => (email?.payload?.headers || []).find(item => Str
 const money = (value) => Number(String(value || '').replace(/[$,]/g, '')) || 0;
 const workOrder = (value) => String(value || '').match(/\d{5,}/)?.[0] || '';
 
-function parsePaymentPdf(buffer, fileName, messageId, receivedAt) {
+function parsePaymentPdf(buffer, fileName, messageId, receivedAt, sender = '') {
   return pdf(buffer).then(({ text: rawText }) => {
     const text = String(rawText || '').replace(/\r/g, '');
     // A legitimate remittance has both payment language and at least one work
@@ -70,7 +74,7 @@ function parsePaymentPdf(buffer, fileName, messageId, receivedAt) {
       id: `gmail-payment-${messageId}`,
       gmailMessageId: messageId,
       source: 'gmail',
-      sender: PAYMENT_SENDER,
+      sender,
       receivedAt,
       invoiceNumber,
       invoiceDate,
@@ -86,25 +90,22 @@ function parsePaymentPdf(buffer, fileName, messageId, receivedAt) {
   });
 }
 
-async function emailAndAttachment(token, messageId) {
+async function emailAndAttachments(token, messageId) {
   const response = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}?format=full`, { headers: { authorization: `Bearer ${token}` } });
   const email = await response.json();
   if (!response.ok) throw new Error(email.error?.message || 'Could not open a GoLime payment email.');
-  const from = header(email, 'from').toLowerCase();
-  if (!from.includes(PAYMENT_SENDER)) return null;
-  const attachment = allParts(email.payload).find(part =>
+  const from = header(email, 'from');
+  if (!isGoLimeSender(from)) return [];
+  const attachments = allParts(email.payload).filter(part =>
     part.body?.attachmentId && (String(part.mimeType || '').toLowerCase() === 'application/pdf' || /\.pdf$/i.test(part.filename || ''))
   );
-  if (!attachment) return null;
-  const rawResponse = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}/attachments/${attachment.body.attachmentId}`, { headers: { authorization: `Bearer ${token}` } });
-  const raw = await rawResponse.json();
-  if (!rawResponse.ok) throw new Error(raw.error?.message || 'Could not download a GoLime payment PDF.');
-  return {
-    messageId,
-    receivedAt: email.internalDate ? new Date(Number(email.internalDate)).toISOString() : new Date().toISOString(),
-    fileName: attachment.filename,
-    buffer: decode(raw.data)
-  };
+  const receivedAt = email.internalDate ? new Date(Number(email.internalDate)).toISOString() : new Date().toISOString();
+  return Promise.all(attachments.map(async (attachment, index) => {
+    const rawResponse = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}/attachments/${attachment.body.attachmentId}`, { headers: { authorization: `Bearer ${token}` } });
+    const raw = await rawResponse.json();
+    if (!rawResponse.ok) throw new Error(raw.error?.message || 'Could not download a GoLime payment PDF.');
+    return { messageId: `${messageId}:${index}`, receivedAt, fileName: attachment.filename, sender: from, buffer: decode(raw.data) };
+  }));
 }
 
 export async function importPaymentInvoices(integration) {
@@ -112,11 +113,11 @@ export async function importPaymentInvoices(integration) {
   const { data: ledger, error: ledgerError } = await client.from('payment_ledgers').select('invoices,followups').eq('company_id', integration.company_id).maybeSingle();
   if (ledgerError) throw new Error(ledgerError.code === '42P01' ? 'Payment ledger setup is required before GoLime payment emails can import.' : ledgerError.message);
   const existing = Array.isArray(ledger?.invoices) ? ledger.invoices : [];
-  const seenMessages = new Set(existing.map(item => String(item?.gmailMessageId || '')).filter(Boolean));
+  const seenMessages = new Set(existing.map(item => String(item?.gmailMessageId || '').split(':')[0]).filter(Boolean));
   const token = await gmailToken(integration.refresh_token);
   // Do not require filename:pdf here.  Gmail occasionally indexes the same
   // remittance as application/pdf without exposing a filename search hit.
-  const query = `from:${PAYMENT_SENDER} has:attachment`;
+  const query = 'from:golime.com has:attachment';
   // Gmail permits 500 results per search page. Payment notices are low-volume,
   // so this brings in the full practical history without touching unrelated mail.
   const response = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=500&q=${encodeURIComponent(query)}`, { headers: { authorization: `Bearer ${token}` } });
@@ -128,12 +129,14 @@ export async function importPaymentInvoices(integration) {
   for (const message of list.messages || []) {
     if (seenMessages.has(message.id)) { skipped++; continue; }
     try {
-      const attachment = await emailAndAttachment(token, message.id);
-      if (!attachment) { skipped++; continue; }
-      checked++;
-      const invoice = await parsePaymentPdf(attachment.buffer, attachment.fileName, attachment.messageId, attachment.receivedAt);
-      if (!invoice) { unreadable++; continue; }
-      imported.push(invoice);
+      const attachments = await emailAndAttachments(token, message.id);
+      if (!attachments.length) { skipped++; continue; }
+      for (const attachment of attachments) {
+        checked++;
+        const invoice = await parsePaymentPdf(attachment.buffer, attachment.fileName, attachment.messageId, attachment.receivedAt, attachment.sender);
+        if (!invoice) { unreadable++; continue; }
+        imported.push(invoice);
+      }
       seenMessages.add(message.id);
     } catch (error) {
       console.error('Payment email was skipped:', message.id, error.message);
@@ -165,8 +168,8 @@ export async function importPaymentInvoices(integration) {
     errorSamples,
     invoices: sharedInvoices,
     message: imported.length
-      ? `Imported ${imported.length} GoLime payment invoice${imported.length === 1 ? '' : 's'} from Dhara Patel. Review the matches before sending a follow-up.`
-      : `No new GoLime payment invoices were saved. Gmail found ${(list.messages || []).length} Dhara Patel email${(list.messages || []).length === 1 ? '' : 's'}; checked ${checked} new attachment${checked === 1 ? '' : 's'}, ${unreadable} could not be read, and ${failures} failed.${errorSamples.length ? ` First error: ${errorSamples[0]}` : ''}`
+      ? `Imported ${imported.length} GoLime payment invoice${imported.length === 1 ? '' : 's'}. Review the matches before sending a follow-up.`
+      : `No new GoLime payment invoices were saved. Gmail found ${(list.messages || []).length} GoLime email${(list.messages || []).length === 1 ? '' : 's'}; checked ${checked} new attachment${checked === 1 ? '' : 's'}, ${unreadable} could not be read, and ${failures} failed.${errorSamples.length ? ` First error: ${errorSamples[0]}` : ''}`
   };
 }
 
