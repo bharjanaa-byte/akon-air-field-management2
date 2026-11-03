@@ -250,7 +250,7 @@ const repairMeetingMistake=job=>{const warehouse=/273\s+Bowes\s+Road/i.test(Stri
 for(const job of jobs){const fixed=repairMeetingMistake(job);if(fixed!==job)Object.assign(job,fixed)}
 const mergeDispatchOverrides=mergeJobsForSync;mergeJobsForSync=(localJobs=[],remoteJobs=[])=>mergeDispatchOverrides(localJobs,remoteJobs).map(job=>{const patch=dispatchCardOverrides[String(job.workOrder||'').match(/\d{5,}/)?.[0]||String(job.workOrder||'')];return repairMeetingMistake(patch?{...job,...patch}:job)});
 window.addEventListener('click',async e=>{const action=e.target.closest('[data-action="check-dispatch"]');if(!action)return;e.preventDefault();e.stopImmediatePropagation();const status=document.querySelector('#emailDispatchStatus'),label=action.textContent;action.disabled=true;if(status)status.textContent='Checking recent Master Dispatch PDFs for upcoming jobs...';try{const session=await supabase?.auth.getSession();if(!session?.data?.session)throw new Error('Please sign in first.');const response=await fetch('/.netlify/functions/check-dispatch-now',{headers:{authorization:`Bearer ${session.data.session.access_token}`}}),data=await response.json();if(!response.ok)throw new Error(data.error||'Could not check Gmail.');const workOrderKey=value=>String(value||'').match(/\d{5,}/)?.[0]||String(value||'').trim(),missing=value=>!String(value||'').trim()||/^(?:-|n\/?a|address not available)$/i.test(String(value).trim());let repaired=0;for(const incoming of data.records||[]){const key=workOrderKey(incoming.workOrder),patch={};for(const field of ['source','date','workType','customer','phone','address','equipment','notes','appointmentStart','appointmentEnd'])if(incoming[field]&&!((field==='address'||field==='phone')&&missing(incoming[field])))patch[field]=incoming[field];if(incoming.workType==='Meeting')Object.assign(patch,{workType:'Meeting',customer:'GoLime meeting',extras:[],additionalWork:[],customAmount:0});if(!Object.keys(patch).length)continue;dispatchCardOverrides[key]={...(dispatchCardOverrides[key]||{}),...patch};for(const job of jobs.filter(job=>workOrderKey(job.workOrder)===key))Object.assign(job,patch);repaired++}localStorage.setItem('akon-air-dispatch-card-overrides',JSON.stringify(dispatchCardOverrides));saveLocal();if(currentView==='jobs')renderFilteredJobs();if(currentView==='detail')detailView();if(status)status.textContent=(data.message||`Check complete: ${data.imported||0} job(s) imported.`)+(repaired?` Applied complete dispatch details to ${repaired} job${repaired===1?'':'s'} on this device.`:' No matching job details were returned.')}catch(error){if(status)status.textContent=error.message||'Could not check Gmail.';alert(error.message||'Could not check Gmail.')}finally{action.disabled=false;action.textContent=label}},true);
-if('serviceWorker' in navigator)navigator.serviceWorker.register('./service-worker.js?v=165');
+if('serviceWorker' in navigator)navigator.serviceWorker.register('./service-worker.js?v=166');
 
 const routeColors=['#0c72b8','#16855b','#6957a8','#c96e1a','#d14b68'];
 var homeRouteGeoCache=JSON.parse(localStorage.getItem('akon-air-home-route-geocodes')||'{}');
@@ -302,7 +302,7 @@ refreshFromCloud=async()=>{if(!remoteReady||cloudPushPromise)return;try{const be
 // Preserve every work order during cloud reconciliation.  Earlier duplicate
 // Remove legacy workers once. Earlier app versions registered three competing
 // workers, which could keep an outdated mapping script alive on a phone.
-if('serviceWorker' in navigator&&!localStorage.getItem('akon-air-worker-reset-v165')){navigator.serviceWorker.getRegistrations().then(registrations=>Promise.all(registrations.map(registration=>registration.unregister()))).then(()=>{localStorage.setItem('akon-air-worker-reset-v165','1');return navigator.serviceWorker.register('./service-worker.js?v=165')}).catch(error=>console.warn('App update check failed:',error))}
+if('serviceWorker' in navigator&&!localStorage.getItem('akon-air-worker-reset-v166')){navigator.serviceWorker.getRegistrations().then(registrations=>Promise.all(registrations.map(registration=>registration.unregister()))).then(()=>{localStorage.setItem('akon-air-worker-reset-v166','1');return navigator.serviceWorker.register('./service-worker.js?v=166')}).catch(error=>console.warn('App update check failed:',error))}
 
 // Preserve every work order during cloud reconciliation.  Earlier duplicate
 // cleanup could discard a locally restored card when a stale cloud copy had
@@ -1699,4 +1699,54 @@ handlePhotos=async event=>{
     if(note)note.textContent=saved?`${saved} photo${saved===1?' is':'s are'} saved on this device and will retry syncing automatically.`:'The selected photo could not be saved. Please choose it again.';
     if(!saved)alert('The photo could not be saved. Please choose it again.');
   }finally{input.value='';input.disabled=false;box.classList.remove('uploading');}
+};
+
+// Deleting a job is a shared operation. A physical database delete can be
+// blocked by photo records, and a stale offline phone can recreate the row.
+// A shared Deleted marker solves both: it immediately removes the card from
+// every device while preserving its old photos/reports for audit safety.
+const pendingJobDeletions=new Map(Object.entries(JSON.parse(localStorage.getItem('akon-air-pending-job-deletions')||'{}')));
+const savePendingJobDeletions=()=>localStorage.setItem('akon-air-pending-job-deletions',JSON.stringify(Object.fromEntries(pendingJobDeletions)));
+const jobDeletionKey=job=>String(job?.workOrder||job?.id||'').match(/\d{5,}/)?.[0]||String(job?.workOrder||job?.id||'');
+const mergeJobsBeforeSharedDeletion=mergeJobsForSync;
+mergeJobsForSync=(localJobs=[],remoteJobs=[])=>{
+  const deleted=new Set([...(remoteJobs||[]).filter(job=>String(job?.status||'').toLowerCase()==='deleted').map(jobDeletionKey),...pendingJobDeletions.keys()]);
+  const local=localJobs.filter(job=>!deleted.has(jobDeletionKey(job)));
+  const remote=remoteJobs.filter(job=>String(job?.status||'').toLowerCase()!=='deleted');
+  return mergeJobsBeforeSharedDeletion(local,remote).filter(job=>String(job?.status||'').toLowerCase()!=='deleted'&&!deleted.has(jobDeletionKey(job)));
+};
+confirmDeleteJob=async job=>{
+  if(!confirm(`Delete ${job.workOrder||job.customer||'this job'}?`))return;
+  if(!confirm('Final confirmation: this job will be removed from every shared device. Continue?'))return;
+  try{
+    const deletionKey=jobDeletionKey(job);
+    const note=`${job.notes||''}\n[Deleted from Akon Air Field Management on ${new Date().toISOString()}]`.trim();
+    if(remoteReady&&isUuid(String(job.id))){
+      const result=await supabase.from('jobs').update({status:'Deleted',notes:note}).eq('id',job.id);
+      if(result.error)throw new Error(result.error.message||'Shared deletion could not be saved.');
+    }else if(isUuid(String(job.id))){
+      pendingJobDeletions.set(deletionKey,{id:job.id,notes:note});
+      savePendingJobDeletions();setPendingCloudSync(true);
+    }
+    clearJobEdit(job.id);clearStatusChange(job.id);
+    jobs=jobs.filter(item=>item.id!==job.id);
+    if(activeJobId===job.id)activeJobId=null;
+    saveLocal();setPendingCloudSync(false);
+    render('jobs');
+  }catch(error){
+    console.error('Job deletion failed:',error);
+    alert(`This job was not deleted: ${error.message||'check your connection and try again.'}`);
+  }
+};
+const pushCloudDataBeforeSharedDeletion=pushCloudData;
+pushCloudData=async()=>{
+  if(remoteReady&&currentMembership&&currentUser&&navigator.onLine&&pendingJobDeletions.size){
+    for(const [key,deleted] of [...pendingJobDeletions]){
+      const result=await supabase.from('jobs').update({status:'Deleted',notes:deleted.notes||'[Deleted from Akon Air Field Management]'}).eq('id',deleted.id);
+      if(result.error)throw new Error(`Could not delete ${key}: ${result.error.message||'check your connection and try again.'}`);
+      pendingJobDeletions.delete(key);
+    }
+    savePendingJobDeletions();
+  }
+  return pushCloudDataBeforeSharedDeletion();
 };
